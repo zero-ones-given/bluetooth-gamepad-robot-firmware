@@ -196,6 +196,13 @@ void setup() {
     // But might also fix some connection / re-connection issues.
     BP32.forgetBluetoothKeys();
 
+    // Enables mouse / touchpad support for gamepads that support them.
+    // When enabled controllers like DualSense and DualShock4 generate two connected devices:
+    // - First one: the gamepad
+    // - Second one, which is a "vritual device", is a mouse
+    // By default it is disabled.
+    BP32.enableVirtualDevice(false);
+
     motor_control_setup();
 }
 

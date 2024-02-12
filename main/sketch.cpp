@@ -352,6 +352,11 @@ void setup() {
     // By default, it is disabled.
     BP32.enableVirtualDevice(false);
 
+    // Enables the BLE Service in Bluepad32.
+    // This service allows clients, like a mobile app, to setup and see the state of Bluepad32.
+    // By default, it is disabled.
+    BP32.enableBLEService(false);
+
     motor_control_setup();
 }
 

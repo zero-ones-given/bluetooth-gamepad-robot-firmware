@@ -1,7 +1,7 @@
-# Zero Ones Given Bluetooth remote controlled robot
+# Bluetooth gamepad remote control for a Micro Invaders robot
 
-- Clone the project with submodules: `git clone --recurse-submodules git@github.com:zero-ones-given/bluetooth-robot-firmware.git`
-- Install ESP-IDF 4.4.5
+- Clone the project with submodules: `git clone --recurse-submodules git@github.com:zero-ones-given/bluetooth-gamepad-robot-firmware.git`
+- Install ESP-IDF 5.4
 - Configure python virtual env etc by running: `. $HOME/esp/esp-idf/export.sh`
 - Build `idf.py build`
 - If you get build errors after changing ESP-IDF version, try running `idf.py fullclean` and building again

@@ -40,6 +40,9 @@ Includes the following ESP-IDF components, with a pre-configured `sdkconfig` fil
 
 ## How to compile it
 
+> The compile instructions are for using ESP IDF from the command line. You can also try the [ESP-IDF Extension for Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=espressif.esp-idf-extension). This was last verified working for ESP IDF v4.4.5 installed from the extension version 1.10.2, on a Windows 10 machine, when built and flashed onto several ESP32-WROOM-32E devkits on 13.12.2025. -jKostet
+
+
 ### For Windows
 
 1. Install [ESP-IDF v4.4][esp-idf-windows-installer]. For further info, read: [ESP-IDF Getting Started for Windows][esp-idf-windows-setup]

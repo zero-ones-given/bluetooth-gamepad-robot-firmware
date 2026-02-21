@@ -1,6 +1,6 @@
 # Zero Ones Given Bluetooth remote controlled robot
 
-- Clone the project with submodules: `git clone --recurse-submodules git@github.com:zero-ones-given/bluetooth-robot-firmware.git`
+- Clone the project with submodules: `git clone --recurse-submodules git@github.com:zero-ones-given/bluetooth-gamepad-robot-firmware.git`
 - Install ESP-IDF 4.4.5
 - Configure python virtual env etc by running: `. $HOME/esp/esp-idf/export.sh`
 - Build `idf.py build`
@@ -8,7 +8,7 @@
 - Press the EN button on the ESP32 to enable programming mode
 - Flash and monitor: `idf.py -p /dev/cu.usbserial-0001 flash monitor` (replace the port with the appropriate one)
 - See [pairing instructions for your controller](https://bluepad32.readthedocs.io/en/stable/supported_gamepads/)
-    - If you're using a DS3 controller, find out the bluetooth mac address (should be printed out to console during startup) and use [sixaxispairer](https://github.com/user-none/sixaxispairer) or some other tool to write the mac address to the controller
+    - You can pair most controllers without manually configuring mac addresses. However, If you're using a *DS3 controller*, find out the bluetooth mac address (should be printed out to console during startup) and use [sixaxispairer](https://github.com/user-none/sixaxispairer) or some other tool to write the mac address to the controller
     - `./bin/sixaxispairing xx:xx:xx:xx:xx:xx`
 
 ## Controls

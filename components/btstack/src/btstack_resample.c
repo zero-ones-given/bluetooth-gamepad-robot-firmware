@@ -38,13 +38,18 @@
 #define BTSTACK_FILE__ "btstack_resample.c"
 
 #include "btstack_bool.h"
+#include "btstack_debug.h"
 #include "btstack_resample.h"
 
 void btstack_resample_init(btstack_resample_t * context, int num_channels){
+    btstack_assert(num_channels <= BTSTACK_RESAMPLE_MAX_CHANNELS);
+
     context->src_pos = 0;
     context->src_step = 0x10000;  // default resampling 1.0
-    context->last_sample[0] = 0;
-    context->last_sample[1] = 0;
+    int i;
+    for (i = 0; i < num_channels; i++){
+        context->last_sample[i] = 0;
+    }
     context->num_channels   = num_channels;
 }
 
@@ -53,6 +58,8 @@ void btstack_resample_set_factor(btstack_resample_t * context, uint32_t src_step
 }
 
 uint16_t btstack_resample_block(btstack_resample_t * context, const int16_t * input_buffer, uint32_t num_frames, int16_t * output_buffer){
+    btstack_assert(context->num_channels > 0);
+
     uint16_t dest_frames = 0;
     uint16_t dest_samples = 0;
     // samples between last sample of previous block and first sample in current block 
@@ -76,6 +83,7 @@ uint16_t btstack_resample_block(btstack_resample_t * context, const int16_t * in
         int i;
         if (src_pos >= (num_frames - 1u)){
             // store last sample
+            index = (num_frames-1u) * context->num_channels;
             for (i=0;i<context->num_channels;i++){
                 context->last_sample[i] = input_buffer[index++];
             }

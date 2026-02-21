@@ -43,11 +43,12 @@ extern "C" {
 #endif
  
 #include "btstack_config.h"
+#include "gap.h"
 #include <stdint.h>
 
 #ifdef ENABLE_GOEP_L2CAP
 #ifndef GOEP_SERVER_ERTM_BUFFER
-#define GOEP_SERVER_ERTM_BUFFER 1000
+#define GOEP_SERVER_ERTM_BUFFER 2000
 #endif
 #endif
 
@@ -143,6 +144,9 @@ uint8_t goep_server_request_can_send_now(uint16_t goep_cid);
 
 /**
  * @brief Start Connect response
+ * @note Reserves outgoing packet buffer
+ * @note Must only be called after a 'can send now' check or event
+ * @note Asserts if packet buffer is already reserved
  * @param goep_cid
  * @param obex_version_number
  * @param flags
@@ -153,6 +157,9 @@ uint8_t goep_server_response_create_connect(uint16_t goep_cid, uint8_t obex_vers
 
 /**
  * @brief Start General response
+ * @note Reserves outgoing packet buffer
+ * @note Must only be called after a 'can send now' check or event
+ * @note Asserts if packet buffer is already reserved
  * @note response code is set by goep_server_execute
  * @param goep_cid
  * @param opcode
@@ -184,6 +191,28 @@ uint8_t goep_server_header_add_end_of_body(uint16_t goep_cid, const uint8_t * en
  */
 uint8_t goep_server_header_add_srm_enable(uint16_t goep_cid);
 
+/**
+ * @brief Add SRM ENABLE_WAIT header to current response
+ * @param goep_cid
+ * @return
+ */
+uint8_t goep_server_header_add_srm_enable_wait(uint16_t goep_cid);
+
+/**
+ * @brief Add name header to current response
+ * @param goep_cid
+ * @param name \0 terminated string
+ * @return
+ */
+uint8_t goep_server_header_add_name(uint16_t goep_cid, const char *name);
+
+/**
+ * @brief Add type header to current response
+ * @param goep_cid
+ * @param name \0 terminated string
+ * @return
+ */
+uint8_t goep_server_header_add_type(uint16_t goep_cid, const char *type);
 
 /**
  * @brief Add application parameters header to current request
@@ -201,6 +230,13 @@ uint8_t goep_server_header_add_application_parameters(uint16_t goep_cid, const u
  * @return status
  */
 uint8_t goep_server_execute(uint16_t goep_cid, uint8_t response_code);
+
+/**
+ * @brief Disconnect client
+ * @param goep_cid
+ * @return status
+ */
+uint8_t goep_server_disconnect(uint16_t goep_cid);
 
 /**
  * De-Init

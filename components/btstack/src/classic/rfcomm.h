@@ -92,7 +92,6 @@ typedef enum {
     RFCOMM_CHANNEL_SEND_DISC,
     RFCOMM_CHANNEL_W4_UA_AFTER_DISC,
     RFCOMM_CHANNEL_SEND_DM,
-    RFCOMM_CHANNEL_EMIT_OPEN_FAILED_AND_DISCARD,
 } RFCOMM_CHANNEL_STATE;
 
 
@@ -154,10 +153,7 @@ typedef struct {
     // linked list - assert: first field
     btstack_linked_item_t    item;
     
-    btstack_timer_source_t   timer;
-    int              timer_active;
-    
-	RFCOMM_MULTIPLEXER_STATE state;	
+	RFCOMM_MULTIPLEXER_STATE state;
     
     uint16_t  l2cap_cid;
     
@@ -425,7 +421,8 @@ uint16_t rfcomm_get_max_frame_size(uint16_t rfcomm_cid);
 
 /** 
  * @brief Reserve packet buffer to allow to create RFCOMM packet in place
- * @return true on success
+ * @note Must only be called after a 'can send now' check or event
+ * @note Asserts if packet buffer is already reserved
  *
  * if (rfcomm_can_send_packet_now(cid)){
  *     rfcomm_reserve_packet_buffer();
@@ -435,7 +432,7 @@ uint16_t rfcomm_get_max_frame_size(uint16_t rfcomm_cid);
  *     rfcomm_send_prepared(cid, len)
  * }
  */
-bool rfcomm_reserve_packet_buffer(void);
+void rfcomm_reserve_packet_buffer(void);
 
 /**
  * @brief Get outgoing buffer

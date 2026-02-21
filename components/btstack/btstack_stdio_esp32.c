@@ -44,6 +44,10 @@
  *  Busy waits until character has been processed
  */
 
+#include "sdkconfig.h"
+
+#ifdef CONFIG_ESP_CONSOLE_UART
+
 #include "btstack_stdin.h"
 #include "btstack_run_loop.h"
 #include "btstack_defines.h"
@@ -56,11 +60,16 @@
 #include <errno.h>
 #include <reent.h>
 
-#include "sdkconfig.h"
 #include "driver/uart.h"
 
-#include "esp_vfs_dev.h"
+#include "esp_idf_version.h"
 #include "esp_log.h"
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+#include "driver/uart_vfs.h"
+#else
+#include "esp_vfs_dev.h"
+#endif
 
 static const char *TAG = "btstack_stdio";
 
@@ -142,7 +151,7 @@ static void btstack_stdio_task(void *arg){
 #define UART_SCLK_DEFAULT UART_SCLK_APB
 #endif
 
-void btstack_stdio_init() {
+void btstack_stdio_init(void) {
     /* Drain stdout before reconfiguring it */
     fflush(stdout);
     fsync(fileno(stdout));
@@ -189,7 +198,11 @@ void btstack_stdio_init() {
             0));
 
     /* Tell VFS to use UART driver */
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+    uart_vfs_dev_use_driver(CONFIG_ESP_CONSOLE_UART_NUM);
+#else
     esp_vfs_dev_uart_use_driver(CONFIG_ESP_CONSOLE_UART_NUM);
+#endif
 
     //Create a task to block on UART RX
     xTaskCreate(btstack_stdio_task, "btstack_stdio", 2048, NULL, 12, NULL);
@@ -204,3 +217,12 @@ void btstack_stdin_setup(void (*handler)(char c)){
     // set handler
     stdin_handler = handler;
 }
+
+#else
+// Empty functions for backwards-compatiblitity
+void btstack_stdio_init(void) {}
+void btstack_stdin_setup(void (*handler)(char c)){
+    (void) handler;
+}
+
+#endif /* CONFIG_ESP_CONSOLE_UART */

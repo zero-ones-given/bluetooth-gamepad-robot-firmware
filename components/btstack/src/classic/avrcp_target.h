@@ -69,8 +69,8 @@ typedef enum {
  * @param service
  * @param service_record_handle
  * @param supported_features 16-bit bitmap, see AVRCP_FEATURE_MASK_* in avrcp.h
- * @param service_name
- * @param service_provider_name
+ * @param service_name or NULL for default value. Provide "" (empty string) to skip attribute
+ * @param service_provider_name or NULL for default value. Provide "" (empty string) to skip attribute
  */
 void    avrcp_target_create_sdp_record(uint8_t * service, uint32_t service_record_handle, uint16_t supported_features, const char * service_name, const char * service_provider_name);
 
@@ -236,6 +236,10 @@ uint8_t avrcp_target_operation_accepted(uint16_t avrcp_cid, avrcp_operation_id_t
  * @return status ERROR_CODE_UNKNOWN_CONNECTION_IDENTIFIER if connection is not found, otherwise ERROR_CODE_SUCCESS
  */
 uint8_t avrcp_target_operation_not_implemented(uint16_t avrcp_cid, avrcp_operation_id_t opid, uint8_t operands_length, uint8_t operand);
+
+uint8_t avrcp_target_uids_changed(uint16_t avrcp_cid, uint16_t uid_counter);
+uint8_t avrcp_target_send_response_for_play_item_cmd(uint16_t avrcp_cid, avrcp_status_code_t status);
+uint8_t avrcp_target_send_response_for_add_to_now_playing_cmd(uint16_t avrcp_cid, avrcp_status_code_t status);
 
 /**
  * @brief De-Init AVRCP Browsing Target

@@ -109,6 +109,9 @@ with open (outfile, 'wb') as fout:
 			try:
 				# try to deal with windows 16-bit unicode by dropping \0 characters
 				line = ''.join([c for c in line if c != '\0'])
+				# drop Segger RTT console prefix
+				if line.startswith('00> '):
+					line = line[4:]
 				line_conter += 1
 				timestamp = None
 				# strip newlines
@@ -142,6 +145,14 @@ with open (outfile, 'wb') as fout:
 				rest = chop(line,'SCO <= ')
 				if rest:
 					handleHexPacket(fout, timestamp, 9, rest)
+					continue
+				rest = chop(line,'ISO => ')
+				if rest:
+					handleHexPacket(fout, timestamp, 0x0c, rest)
+					continue
+				rest = chop(line,'ISO <= ')
+				if rest:
+					handleHexPacket(fout, timestamp, 0x0d, rest)
 					continue
 				rest = chop(line,'LOG -- ')
 				if rest:

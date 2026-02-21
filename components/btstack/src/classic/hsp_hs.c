@@ -417,9 +417,8 @@ static void hsp_run_handle_state(void){
                     return;
                 }
                 char buffer[20];
-                snprintf(buffer, sizeof(buffer), "%s=%d\r",
+                btstack_snprintf_assert_complete(buffer, sizeof(buffer), "%s=%d\r",
                          HSP_HS_MICROPHONE_GAIN, hsp_hs_microphone_gain);
-                buffer[sizeof(buffer) - 1] = 0;
                 hsp_hs_send_str_over_rfcomm(hsp_hs_rfcomm_cid, buffer);
                 hsp_hs_microphone_gain = -1;
                 break;
@@ -431,9 +430,8 @@ static void hsp_run_handle_state(void){
                     return;
                 }
                 char buffer[20];
-                snprintf(buffer, sizeof(buffer), "%s=%d\r",
+                btstack_snprintf_assert_complete(buffer, sizeof(buffer), "%s=%d\r",
                          HSP_HS_SPEAKER_GAIN, hsp_hs_speaker_gain);
-                buffer[sizeof(buffer) - 1] = 0;
                 hsp_hs_send_str_over_rfcomm(hsp_hs_rfcomm_cid, buffer);
                 hsp_hs_speaker_gain = -1;
                 break;
@@ -461,9 +459,9 @@ static void hsp_run(void){
         // pick packet types based on SCO link type (SCO vs. eSCO)
         uint16_t packet_types;
         if (eSCO && hci_extended_sco_link_supported() && hci_remote_esco_supported(hsp_hs_rfcomm_handle)){
-            packet_types = 0x3F8;
+            packet_types = SCO_PACKET_TYPES_EV3 | SCO_PACKET_TYPES_2EV3;
         } else {
-            packet_types = 0x0007;
+            packet_types = SCO_PACKET_TYPES_HV3 | SCO_PACKET_TYPES_HV2 | SCO_PACKET_TYPES_HV1;
         }
 
         // packet type override

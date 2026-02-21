@@ -60,9 +60,18 @@ extern "C" {
 #undef reverse_64
 #endif
 
-// will be moved to daemon/btstack_device_name_db.h
+// use replacement in Visual Studio
+#ifdef _MSC_VER
+#define strncasecmp _strnicmp
+#define strcasecmp _stricmp
+#endif
 
 
+ /**
+  * @brief returns a value with number of lowest bits set to <1>
+  */
+#define N_BITS(value) ((1<<value) - 1)
+ 
 /**
  * @brief The device name type
  */
@@ -100,41 +109,46 @@ int32_t btstack_time_delta(uint32_t time_a, uint32_t time_b);
 int16_t btstack_time16_delta(uint16_t time_a, uint16_t time_b);
 
 /** 
- * @brief Read 16/24/32 bit little endian value from buffer
+ * @brief Read 08/16/24/32 bit little endian value from buffer
  * @param buffer
  * @param position in buffer
  * @return value
  */
+uint8_t  little_endian_read_08(const uint8_t * buffer, int position);
 uint16_t little_endian_read_16(const uint8_t * buffer, int position);
 uint32_t little_endian_read_24(const uint8_t * buffer, int position);
 uint32_t little_endian_read_32(const uint8_t * buffer, int position);
 
+
 /** 
- * @brief Write 16/32 bit little endian value into buffer
+ * @brief Write 08/16/32 bit little endian value into buffer
  * @param buffer
  * @param position in buffer
  * @param value
  */
+void little_endian_store_08(uint8_t * buffer, uint16_t position, uint8_t value);
 void little_endian_store_16(uint8_t * buffer, uint16_t position, uint16_t value);
 void little_endian_store_24(uint8_t * buffer, uint16_t position, uint32_t value);
 void little_endian_store_32(uint8_t * buffer, uint16_t position, uint32_t value);
 
 /** 
- * @brief Read 16/24/32 bit big endian value from buffer
+ * @brief Read 08/16/24/32 bit big endian value from buffer
  * @param buffer
  * @param position in buffer
  * @return value
  */
+uint32_t big_endian_read_08(const uint8_t* buffer, int position);
 uint32_t big_endian_read_16(const uint8_t * buffer, int position);
 uint32_t big_endian_read_24(const uint8_t * buffer, int position);
 uint32_t big_endian_read_32(const uint8_t * buffer, int position);
 
 /** 
- * @brief Write 16/32 bit big endian value into buffer
+ * @brief Write 08/16/32 bit big endian value into buffer
  * @param buffer
  * @param position in buffer
  * @param value
  */
+void big_endian_store_08(uint8_t * buffer, uint16_t position, uint8_t value);
 void big_endian_store_16(uint8_t * buffer, uint16_t position, uint16_t value);
 void big_endian_store_24(uint8_t * buffer, uint16_t position, uint32_t value);
 void big_endian_store_32(uint8_t * buffer, uint16_t position, uint32_t value);
@@ -195,11 +209,18 @@ void reverse_bd_addr(const bd_addr_t src, bd_addr_t dest);
  */
 bool btstack_is_null(const uint8_t * buffer, uint16_t size);
 
+/**
+ * @brief Check if all bytes in a bd_addr_t are zero
+ * @param addr
+ * @return true if all bytes in addr are zero
+ */
+bool btstack_is_null_bd_addr( const bd_addr_t addr );
+
 /** 
  * @brief ASCII character for 4-bit nibble
  * @return character
  */
-char char_for_nibble(int nibble);
+char char_for_nibble(uint8_t nibble);
 
 /**
  * @brif 4-bit nibble from ASCII character
@@ -275,9 +296,9 @@ void uuid_add_bluetooth_prefix(uint8_t * uuid128, uint32_t short_uuid);
 /**
  * @brief Checks if UUID128 has Bluetooth base UUID prefix
  * @param uui128 to test
- * @return 1 if it can be expressed as UUID32
+ * @return true if it can be expressed as UUID32
  */
-int  uuid_has_bluetooth_prefix(const uint8_t * uuid128);
+bool uuid_has_bluetooth_prefix(const uint8_t * uuid128);
 
 /**
  * @brief Parse unsigned number 
@@ -317,6 +338,33 @@ uint8_t btstack_crc8_check(uint8_t * data, uint16_t len, uint8_t check_sum);
  */
 uint8_t btstack_crc8_calc(uint8_t * data, uint16_t len);
 
+
+/**
+ * @brief Calculate the initial CRC32 value using ISO 3309 (HDLC), polynomial (normal) 0x04c11db7
+ * @note Used by OTS Service. 
+ * 
+ * @return  The initial crc value.
+ */
+uint32_t btstack_crc32_init(void);
+
+/**
+ * @brief Update the CRC32 value with new data.
+ *
+ * @param crc      The current crc value.
+ * @param data     Pointer to a buffer of \a data_len bytes.
+ * @param data_len Number of bytes in the \a data buffer.
+ * @return             The updated crc value.
+ */
+uint32_t btstack_crc32_update(uint32_t crc, const uint8_t * data, uint32_t data_len);
+
+/**
+ * @brief Calculate the final CRC32 value.
+ *
+ * @param crc  The current crc value.
+ * @return     The final crc value.
+ */
+uint32_t btstack_crc32_finalize(uint32_t crc);
+
 /**
  * @brief Get next cid
  * @param current_cid
@@ -342,6 +390,50 @@ uint16_t btstack_strcpy(char * dst, uint16_t dst_size, const char * src);
  * @param src
  */
 void btstack_strcat(char * dst, uint16_t dst_size, const char * src);
+
+/**
+ * @brief Calculated the number of characters that would get printed
+ * @note same as calling snprintf without a buffer
+ * @param format
+ * @param argsq
+ * @return number of characters, or negative value on error
+ */
+int btstack_printf_strlen(const char * format, ...)
+#ifdef __GNUC__
+__attribute__ ((format (__printf__, 1, 2)))
+#endif
+;
+
+
+/**
+ * @brief Format string into buffer with '\0' and assert it is large enough
+ * @note same as calling snprintf and assert that the string was not truncated
+ * @param buffer
+ * @param size of buffer
+ * @param format
+ * @param argsq
+ * @return number of characters
+ */
+uint16_t btstack_snprintf_assert_complete(char * buffer, size_t size, const char * format, ...)
+#ifdef __GNUC__
+__attribute__ ((format (__printf__, 3, 4)))
+#endif
+;
+
+/**
+ * @brief Format string into buffer, truncated if necessary. Output string is '\0' terminated
+ * @note similar to calling snprintf but returns the length of the output string
+ * @param buffer
+ * @param size of buffer
+ * @param format
+ * @param argsq
+ * @return number of characters
+ */
+uint16_t btstack_snprintf_best_effort(char * buffer, size_t size, const char * format, ...)
+#ifdef __GNUC__
+__attribute__ ((format (__printf__, 3, 4)))
+#endif
+;
 
 /**
  * Returns the number of leading 0-bits in x, starting at the most significant bit position.

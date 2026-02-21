@@ -88,7 +88,7 @@ i2s_chan_handle_t rx_handle = NULL;
 #define BTSTACK_AUDIO_I2S_WS  GPIO_NUM_45
 #define BTSTACK_AUDIO_I2S_OUT GPIO_NUM_8
 #define BTSTACK_AUDIO_I2S_IN  GPIO_NUM_10
-#else
+#elif CONFIG_ESP_LYRAT_V4_3_BOARD
 // ESP32-LyraT V4
 #define BTSTACK_AUDIO_I2S_MCLK GPIO_NUM_0
 #define BTSTACK_AUDIO_I2S_BCK  GPIO_NUM_5
@@ -96,12 +96,20 @@ i2s_chan_handle_t rx_handle = NULL;
 #define BTSTACK_AUDIO_I2S_OUT  GPIO_NUM_26
 #define BTSTACK_AUDIO_I2S_IN   GPIO_NUM_35
 #define HEADPHONE_DETECT       GPIO_NUM_19
+#elif CONFIG_IDF_TARGET_ESP32
+// Generic ESP32
+#define BTSTACK_AUDIO_I2S_MCLK GPIO_NUM_0
+#define BTSTACK_AUDIO_I2S_BCK  GPIO_NUM_5
+#define BTSTACK_AUDIO_I2S_WS   GPIO_NUM_25
+#define BTSTACK_AUDIO_I2S_OUT  GPIO_NUM_26
+#define BTSTACK_AUDIO_I2S_IN   GPIO_NUM_35
+#else
+#error "No I2S configuration, if you don't use BTstack I2S audio please disable BTSTACK_AUDIO in Components->BTstack Configuration"
 #endif
 
-// prototypes
-#if 0
-static void btstack_audio_esp32_sink_fill_buffer(void);
-static void btstack_audio_esp32_source_process_buffer(void);
+// set MCLK unused
+#ifndef BTSTACK_AUDIO_I2S_MCLK
+#define BTSTACK_AUDIO_I2S_MCLK GPIO_NUM_NC
 #endif
 
 #define BTSTACK_AUDIO_I2S_NUM  (I2S_NUM_0)
@@ -312,7 +320,11 @@ static void btstack_audio_esp32_init(void) {
     i2s_std_config_t std_cfg = {
         .clk_cfg = {
             .sample_rate_hz = btstack_audio_esp32_i2s_samplerate,
+#if SOC_I2S_SUPPORTS_APLL
             .clk_src = I2S_CLK_SRC_APLL,
+#else
+            .clk_src = I2S_CLK_SRC_DEFAULT,
+#endif
             .mclk_multiple = I2S_MCLK_MULTIPLE_256, // for 16bit data
         },
         .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),

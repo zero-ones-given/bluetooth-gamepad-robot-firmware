@@ -1,9 +1,7 @@
 # The following lines of boilerplate have to be in your project's
 # CMakeLists in this exact order for cmake to work correctly
-cmake_minimum_required(VERSION 3.5)
-
-# See: https://gitlab.com/ricardoquesada/bluepad32/-/issues/9
-set(ENV{BLUEPAD32_ARDUINO} TRUE)
+cmake_minimum_required(VERSION 3.13)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(app-template)
+
+project(bluepad32_arduino_app_template)

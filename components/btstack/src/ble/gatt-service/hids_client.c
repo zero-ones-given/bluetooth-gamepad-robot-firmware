@@ -56,11 +56,14 @@
 #include "btstack_event.h"
 #include "btstack_run_loop.h"
 #include "gap.h"
+#include "ble/gatt_service_client.h"
 
 #define HID_REPORT_MODE_REPORT_ID               3
 #define HID_REPORT_MODE_REPORT_MAP_ID           4
 #define HID_REPORT_MODE_HID_INFORMATION_ID      5
 #define HID_REPORT_MODE_HID_CONTROL_POINT_ID    6
+
+static btstack_packet_callback_registration_t hci_event_callback_registration;
 
 static btstack_linked_list_t clients;
 static uint16_t hids_cid_counter = 0;
@@ -128,29 +131,37 @@ static hids_client_t * hids_get_client_for_cid(uint16_t hids_cid){
 
 // START Descriptor Storage Util
 
+static uint16_t hids_client_descriptors_len(hids_client_t * client){
+    uint16_t descriptors_len = 0;
+    uint8_t service_index;
+    for (service_index = 0; service_index < client->num_instances; service_index++){
+        descriptors_len += client->services[service_index].hid_descriptor_len;
+    }
+    return descriptors_len;
+}
+
 static uint16_t hids_client_descriptor_storage_get_available_space(void){
     // assumes all descriptors are back to back
     uint16_t free_space = hids_client_descriptor_storage_len;
-    uint8_t i;
-    
-    btstack_linked_list_iterator_t it;    
+    btstack_linked_list_iterator_t it;
     btstack_linked_list_iterator_init(&it, &clients);
     while (btstack_linked_list_iterator_has_next(&it)){
         hids_client_t * client = (hids_client_t *)btstack_linked_list_iterator_next(&it);
-        for (i = 0; i < client->num_instances; i++){
-            free_space -= client->services[i].hid_descriptor_len;
-        }
+        free_space -= hids_client_descriptors_len(client);
     }
     return free_space;
 }
 
 static void hids_client_descriptor_storage_init(hids_client_t * client, uint8_t service_index){
+    // reserve remaining space for this connection
+    uint16_t available_space = hids_client_descriptor_storage_get_available_space();
     client->services[service_index].hid_descriptor_len = 0;
-    client->services[service_index].hid_descriptor_max_len = hids_client_descriptor_storage_get_available_space();
-    client->services[service_index].hid_descriptor_offset = hids_client_descriptor_storage_len - client->services[service_index].hid_descriptor_max_len;
+    client->services[service_index].hid_descriptor_max_len = available_space;
+    client->services[service_index].hid_descriptor_offset = hids_client_descriptor_storage_len - available_space;
 }
 
 static bool hids_client_descriptor_storage_store(hids_client_t * client, uint8_t service_index, uint8_t byte){
+    // store single hid descriptor byte
     if (client->services[service_index].hid_descriptor_len >= client->services[service_index].hid_descriptor_max_len) return false;
 
     hids_client_descriptor_storage[client->services[service_index].hid_descriptor_offset + client->services[service_index].hid_descriptor_len] = byte;
@@ -159,30 +170,36 @@ static bool hids_client_descriptor_storage_store(hids_client_t * client, uint8_t
 }
 
 static void hids_client_descriptor_storage_delete(hids_client_t * client){
-    uint8_t service_index = 0;
-    uint16_t next_offset = 0;
+    uint8_t service_index;
 
-    for (service_index = 0; service_index < client->num_instances; service_index++){
-        next_offset += client->services[service_index].hid_descriptor_offset + client->services[service_index].hid_descriptor_len;
-        client->services[service_index].hid_descriptor_len = 0;
-        client->services[service_index].hid_descriptor_offset = 0;
-    }
+    // calculate descriptors len
+    uint16_t descriptors_len = hids_client_descriptors_len(client);
 
-    memmove(&hids_client_descriptor_storage[client->services[0].hid_descriptor_offset], 
-            &hids_client_descriptor_storage[next_offset],
-            hids_client_descriptor_storage_len - next_offset);
-    
-    uint8_t i;
-    btstack_linked_list_iterator_t it;
-    btstack_linked_list_iterator_init(&it, &clients);
-    while (btstack_linked_list_iterator_has_next(&it)){
-        hids_client_t * conn = (hids_client_t *)btstack_linked_list_iterator_next(&it);
-        for (i = 0; i < client->num_instances; i++){
-            if (conn->services[i].hid_descriptor_offset >= next_offset){
-                conn->services[i].hid_descriptor_offset = next_offset;
-                next_offset += conn->services[service_index].hid_descriptor_len;
+    if (descriptors_len > 0){
+        // move higher descriptors down
+        uint16_t next_offset = client->services[0].hid_descriptor_offset + descriptors_len;
+        memmove(&hids_client_descriptor_storage[client->services[0].hid_descriptor_offset],
+                &hids_client_descriptor_storage[next_offset],
+                hids_client_descriptor_storage_len - next_offset);
+
+        // fix descriptor offset of higher descriptors
+        btstack_linked_list_iterator_t it;
+        btstack_linked_list_iterator_init(&it, &clients);
+        while (btstack_linked_list_iterator_has_next(&it)){
+            hids_client_t * conn = (hids_client_t *)btstack_linked_list_iterator_next(&it);
+            if (conn == client) continue;
+            for (service_index = 0; service_index < client->num_instances; service_index++){
+                if (conn->services[service_index].hid_descriptor_offset >= next_offset){
+                    conn->services[service_index].hid_descriptor_offset -= descriptors_len;
+                }
             }
         }
+    }
+
+    // clear descriptors
+    for (service_index = 0; service_index < client->num_instances; service_index++){
+        client->services[service_index].hid_descriptor_len = 0;
+        client->services[service_index].hid_descriptor_offset = 0;
     }
 }
 
@@ -511,6 +528,18 @@ static void hids_emit_connection_established(hids_client_t * client, uint8_t sta
     (*client->client_handler)(HCI_EVENT_PACKET, 0, event, sizeof(event));
 }
 
+static void hids_emit_disconnected(btstack_packet_handler_t packet_handler, uint16_t cid){
+    uint8_t event[5];
+    int pos = 0;
+    event[pos++] = HCI_EVENT_GATTSERVICE_META;
+    event[pos++] = sizeof(event) - 2;
+    event[pos++] = GATTSERVICE_SUBEVENT_HID_SERVICE_DISCONNECTED;
+    little_endian_store_16(event, pos, cid);
+    pos += 2;
+    btstack_assert(pos == sizeof(event));
+    (*packet_handler)(HCI_EVENT_PACKET, 0, event, sizeof(event));
+}
+
 static void hids_emit_notifications_configuration(hids_client_t * client){
     uint8_t event[6];
     int pos = 0;
@@ -523,20 +552,26 @@ static void hids_emit_notifications_configuration(hids_client_t * client){
     (*client->client_handler)(HCI_EVENT_PACKET, 0, event, sizeof(event));
 }
 
-static void hids_client_setup_report_event(hids_client_t * client, uint8_t report_index, uint8_t *buffer, uint16_t report_len){
+static uint16_t hids_client_setup_report_event(uint8_t subevent, hids_client_t *client, uint8_t report_index, uint8_t *buffer,
+                               uint16_t report_len) {
     uint16_t pos = 0;
     buffer[pos++] = HCI_EVENT_GATTSERVICE_META;
     pos++;  // skip len
-    buffer[pos++] = GATTSERVICE_SUBEVENT_HID_REPORT;
+    buffer[pos++] = subevent;
     little_endian_store_16(buffer, pos, client->cid);
     pos += 2;
     buffer[pos++] = client->reports[report_index].service_index;
     buffer[pos++] = client->reports[report_index].report_id;
-    little_endian_store_16(buffer, pos, report_len + 1);
+    little_endian_store_16(buffer, pos, report_len);
     pos += 2;
-    buffer[pos++] = client->reports[report_index].report_id;
-    buffer[1] = pos + (report_len + 1) - 2;
+    buffer[1] = pos + report_len - 2;
+    return pos;
+}
 
+static void hids_client_setup_report_event_with_report_id(hids_client_t * client, uint8_t report_index, uint8_t *buffer, uint16_t report_len){
+    uint16_t pos = hids_client_setup_report_event(GATTSERVICE_SUBEVENT_HID_REPORT, client, report_index, buffer,
+                                                  report_len + 1);
+    buffer[pos] = client->reports[report_index].report_id;
 }
 
 static void hids_client_emit_hid_information_event(hids_client_t * client, const uint8_t *value, uint16_t value_len){
@@ -588,9 +623,19 @@ static void handle_notification_event(uint8_t packet_type, uint16_t channel, uin
         return;
     }
 
-    uint8_t * in_place_event = &packet[-2];
-    hids_client_setup_report_event(client, report_index, in_place_event, gatt_event_notification_get_value_length(packet));
-    (*client->client_handler)(HCI_EVENT_GATTSERVICE_META, client->cid, in_place_event, size + 2);
+    // GATT_EVENT_NOTIFICATION has HID report data at offset 12
+    // - see gatt_event_notification_get_value()
+    //
+    // GATTSERVICE_SUBEVENT_HID_REPORT has HID report data at offset 10
+    // - see gattservice_subevent_hid_report_get_report() and add 1 for the inserted Report ID
+    //
+    // => use existing packet from offset 2 = 12 - 10 to setup event
+    const int16_t offset = 2;
+
+    uint8_t * in_place_event = &packet[offset];
+    hids_client_setup_report_event_with_report_id(client, report_index, in_place_event,
+                                                  gatt_event_notification_get_value_length(packet));
+    (*client->client_handler)(HCI_EVENT_GATTSERVICE_META, client->cid, in_place_event, size - offset);
 }
 
 static void handle_report_event(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size) {
@@ -611,10 +656,20 @@ static void handle_report_event(uint8_t packet_type, uint16_t channel, uint8_t *
     if (report_index == HIDS_CLIENT_INVALID_REPORT_INDEX){
         return;
     }
-    
-    uint8_t * in_place_event = &packet[-2];
-    hids_client_setup_report_event(client, report_index, in_place_event, gatt_event_characteristic_value_query_result_get_value_length(packet));
-    (*client->client_handler)(HCI_EVENT_GATTSERVICE_META, client->cid, in_place_event, size + 2);
+
+    // GATT_EVENT_CHARACTERISTIC_VALUE_QUERY_RESULT has HID report data at offset 12
+    // - see gatt_event_characteristic_value_query_result_get_value()
+    //
+    // GATTSERVICE_SUBEVENT_HID_REPORT has HID report data at offset 10
+    // - see gattservice_subevent_hid_report_get_report() and add 1 for the inserted Report ID
+    //
+    // => use existing packet from offset 2 = 12 - 10 to setup event
+    const int16_t offset = 2;
+
+    uint8_t * in_place_event = &packet[offset];
+    hids_client_setup_report_event_with_report_id(client, report_index, in_place_event,
+                                                  gatt_event_characteristic_value_query_result_get_value_length(packet));
+    (*client->client_handler)(HCI_EVENT_GATTSERVICE_META, client->cid, in_place_event, size - offset);
 }
 
 static void hids_run_for_client(hids_client_t * client){
@@ -810,7 +865,7 @@ static void hids_run_for_client(hids_client_t * client){
 
             // see GATT_EVENT_QUERY_COMPLETE for end of write
             att_status = gatt_client_write_value_of_characteristic(
-                &handle_report_event, client->con_handle, 
+                &handle_gatt_client_event, client->con_handle,
                 client->reports[client->report_index].value_handle, 
                 client->report_len, (uint8_t *)client->report);
             UNUSED(att_status);
@@ -925,7 +980,7 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel, uint
     UNUSED(size);
 
     hids_client_t * client = NULL;
-    uint8_t att_status;
+    uint8_t status;
     gatt_client_service_t service;
     gatt_client_characteristic_t characteristic;
     gatt_client_characteristic_descriptor_t characteristic_descriptor;
@@ -1176,12 +1231,12 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel, uint
             client = hids_get_client_for_con_handle(gatt_event_query_complete_get_handle(packet));
             if (client == NULL) break;
             
-            att_status = gatt_event_query_complete_get_att_status(packet);
+            status = gatt_client_att_status_to_error_code(gatt_event_query_complete_get_att_status(packet));
             
             switch (client->state){
                 case HIDS_CLIENT_STATE_W4_SERVICE_RESULT:
-                    if (att_status != ATT_ERROR_SUCCESS){
-                        hids_emit_connection_established(client, att_status);  
+                    if (status != ERROR_CODE_SUCCESS){
+                        hids_emit_connection_established(client, status);
                         hids_finalize_client(client);
                         return;  
                     }
@@ -1197,8 +1252,8 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel, uint
                     break;
                 
                 case HIDS_CLIENT_STATE_W4_CHARACTERISTIC_RESULT:
-                    if (att_status != ATT_ERROR_SUCCESS){
-                        hids_emit_connection_established(client, att_status);  
+                    if (status != ERROR_CODE_SUCCESS){
+                        hids_emit_connection_established(client, status);
                         hids_finalize_client(client);
                         return;  
                     }
@@ -1237,8 +1292,8 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel, uint
 
                 // HID descriptor found
                 case HIDS_CLIENT_STATE_W4_REPORT_MAP_HID_DESCRIPTOR:
-                    if (att_status != ATT_ERROR_SUCCESS){
-                        hids_emit_connection_established(client, att_status);  
+                    if (status != ERROR_CODE_SUCCESS){
+                        hids_emit_connection_established(client, status);
                         hids_finalize_client(client);
                         return;  
                     }
@@ -1334,12 +1389,22 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel, uint
                     client->state = HIDS_CLIENT_W2_SEND_GET_REPORT;
                     break;
 #endif
-                
+
                 case HIDS_CLIENT_W4_VALUE_OF_CHARACTERISTIC_RESULT:
-                case HIDS_CLIENT_W4_WRITE_REPORT_DONE:
                     client->state = HIDS_CLIENT_STATE_CONNECTED;
                     break;
 
+                case HIDS_CLIENT_W4_WRITE_REPORT_DONE:
+                    {
+                        client->state = HIDS_CLIENT_STATE_CONNECTED;
+
+                        // emit empty report to signal done
+                        uint8_t event[9];
+                        hids_client_setup_report_event(GATTSERVICE_SUBEVENT_HID_REPORT_WRITTEN, client,
+                                                       client->report_index, event, 0);
+                        (*client->client_handler)(HCI_EVENT_PACKET, 0, event, sizeof(event));
+                    }
+                    break;
 
                 default:
                     break;
@@ -1352,6 +1417,32 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel, uint
 
     if (client != NULL){
         hids_run_for_client(client);
+    }
+}
+
+static void handle_hci_event(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size){
+    UNUSED(packet_type); // ok: only hci events
+    UNUSED(channel);     // ok: there is no channel
+    UNUSED(size);        // ok: fixed format events read from HCI buffer
+
+    hci_con_handle_t con_handle;
+    hids_client_t * client;
+
+    switch (hci_event_packet_get_type(packet)) {
+        case HCI_EVENT_DISCONNECTION_COMPLETE:
+            con_handle = hci_event_disconnection_complete_get_connection_handle(packet);
+            client = hids_get_client_for_con_handle(con_handle);
+            if (client != NULL){
+                // emit disconnected
+                btstack_packet_handler_t packet_handler = client->client_handler;
+                uint16_t cid = client->cid;
+                hids_emit_disconnected(packet_handler, cid);
+                // finalize
+                hids_finalize_client(client);
+            }
+            break;
+        default:
+            break;
     }
 }
 
@@ -1593,6 +1684,9 @@ uint8_t hids_client_disable_notifications(uint16_t hids_cid){
 void hids_client_init(uint8_t * hid_descriptor_storage, uint16_t hid_descriptor_storage_len){
     hids_client_descriptor_storage = hid_descriptor_storage;
     hids_client_descriptor_storage_len = hid_descriptor_storage_len;
+
+    hci_event_callback_registration.callback = &handle_hci_event;
+    hci_add_event_handler(&hci_event_callback_registration);
 }
 
 void hids_client_deinit(void){}

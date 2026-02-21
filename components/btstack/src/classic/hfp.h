@@ -158,6 +158,13 @@ extern "C" {
 #define HFP_LIST_CURRENT_CALLS "+CLCC"
 #define HFP_RESPONSE_AND_HOLD "+BTRH"
 
+// Apple Extensions
+#define HFP_APPLE_ACCESSORY_INFORMATION "+XAPL"
+#define HFP_APPLE_ACCESSORY_STATE "+IPHONEACCEV"
+#define HFP_APPLE_SIRI_STATE "+APLSIRI"
+#define HFP_APPLE_SIRI_EYES_FREE_MODE "+APLEFM"
+#define HFP_APPLE_ACCESSORY_VERSION_LEN  16
+
 #define HFP_OK "OK"
 #define HFP_ERROR "ERROR"
 #define HFP_RING "RING"
@@ -224,6 +231,9 @@ typedef enum {
     HFP_CMD_RESPONSE_AND_HOLD_COMMAND,
     HFP_CMD_RESPONSE_AND_HOLD_STATUS,
     HFP_CMD_HF_INDICATOR_STATUS,
+    HFP_CMD_APPLE_ACCESSORY_INFORMATION,
+    HFP_CMD_APPLE_ACCESSORY_STATE,
+    HFP_CMD_APPLE_DEVICE_INFORMATION,
     HFP_CMD_CUSTOM_MESSAGE
 } hfp_command_t;
  
@@ -638,6 +648,18 @@ typedef struct hfp_connection {
     uint8_t send_ag_indicators_segment;
     uint8_t send_response_and_hold_status;  // 0 - don't send. BRTH:0 == 1, ..
 
+    // Apple Accessory Support
+    bool send_apple_information;
+    bool apple_accessory_commands_supported;
+    // - HF to send
+    int8_t apple_accessory_battery_level;
+    int8_t apple_accessory_docked;
+    // - AG Parser
+    uint16_t apple_accessory_product_id;
+    uint16_t apple_accessory_vendor_id;
+    uint8_t  apple_accessory_features;
+    uint8_t  apple_accessory_key;
+    char     apple_accessory_version[HFP_APPLE_ACCESSORY_VERSION_LEN];
     // HF: AT Command, AG: Unsolicited Result Code
     const char * send_custom_message;
 
@@ -660,6 +682,7 @@ typedef struct hfp_connection {
     uint8_t ag_call_hold_action;
     uint8_t ag_response_and_hold_action;
     uint8_t ag_dtmf_code;
+    bool    ag_in_band_ring_tone_active;
     bool    ag_send_no_carrier;
     bool    ag_vra_send_command;
     bool    ag_send_in_band_ring_tone_setting;
@@ -706,6 +729,10 @@ typedef struct hfp_connection {
     uint8_t hf_deactivate_calling_line_notification;
     uint8_t hf_deactivate_echo_canceling_and_noise_reduction;
 
+    hfp_call_status_t      hf_call_status;
+    hfp_callsetup_status_t hf_callsetup_status;
+    hfp_callheld_status_t  hf_callheld_status;
+
     hfp_voice_recognition_activation_status_t vra_state;
     hfp_voice_recognition_activation_status_t vra_state_requested;
     bool deactivate_voice_recognition;
@@ -742,6 +769,10 @@ typedef struct hfp_connection {
 #endif
 #ifdef ENABLE_RTK_PCM_WBS
     bool rtk_send_sco_config;
+#endif
+#ifdef ENABLE_NXP_PCM_WBS
+    hci_con_handle_t nxp_start_audio_handle;
+    hci_con_handle_t nxp_stop_audio_handle;
 #endif
 } hfp_connection_t;
 
@@ -800,6 +831,7 @@ void hfp_set_ag_rfcomm_packet_handler(btstack_packet_handler_t handler);
 
 void hfp_set_hf_callback(btstack_packet_handler_t callback);
 void hfp_set_hf_rfcomm_packet_handler(btstack_packet_handler_t handler);
+void hfp_set_hf_indicators(uint8_t indicators_nr, const uint8_t * indicators);
 
 void hfp_init(void);
 void hfp_deinit(void);
@@ -866,8 +898,12 @@ uint8_t hfp_trigger_release_audio_connection(hfp_connection_t * hfp_connection);
 
 void hfp_reset_context_flags(hfp_connection_t * hfp_connection);
 
+// @returns if an SCO setup is active in either role
+bool hfp_sco_setup_active(void);
+
 void hfp_setup_synchronous_connection(hfp_connection_t * hfp_connection);
 void hfp_accept_synchronous_connection(hfp_connection_t * hfp_connection, bool incoming_eSCO);
+
 int hfp_supports_codec(uint8_t codec, int codecs_nr, uint8_t * codecs);
 void hfp_hf_drop_mSBC_if_eSCO_not_supported(uint8_t * codecs, uint8_t * codecs_nr);
 void hfp_init_link_settings(hfp_connection_t * hfp_connection, uint8_t eSCO_S4_supported);
@@ -886,12 +922,14 @@ const char * hfp_enhanced_call_status2str(uint16_t index);
 const char * hfp_enhanced_call_mode2str(uint16_t index);
 const char * hfp_enhanced_call_mpty2str(uint16_t index);
 
-#ifdef ENABLE_CC256X_ASSISTED_HFP
-void hfp_cc256x_prepare_for_sco(hfp_connection_t * hfp_connection);
-void hfp_cc256x_write_codec_config(hfp_connection_t * hfp_connection);
-#endif
+/**
+ * @brief Prepare for immediate SCO connection.
+ *        Triggers sending of vendor-specific commands to enable mSBC Codec in Controller
+ * @param hfp_connection
+ */
+void hfp_prepare_for_sco(hfp_connection_t * hfp_connection);
+
 #ifdef ENABLE_BCM_PCM_WBS
-void hfp_bcm_prepare_for_sco(hfp_connection_t * hfp_connection);
 void hfp_bcm_write_i2spcm_interface_param (hfp_connection_t * hfp_connection);
 #endif
 

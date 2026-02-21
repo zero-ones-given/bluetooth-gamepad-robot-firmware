@@ -1,25 +1,8 @@
-/****************************************************************************
-http://retro.moe/unijoysticle2
-
-Copyright 2021 Ricardo Quesada
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-****************************************************************************/
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2021 Ricardo Quesada
+// http://retro.moe/unijoysticle2
 
 #include "sdkconfig.h"
-#ifndef CONFIG_BLUEPAD32_PLATFORM_ARDUINO
-#error "Must only be compiled when using Bluepad32 Arduino platform"
-#endif  // !CONFIG_BLUEPAD32_PLATFORM_ARDUINO
 
 #include <Arduino.h>
 #include <Bluepad32.h>
@@ -129,7 +112,7 @@ float limit_range(float value, float min, float max)
 // README FIRST, README FIRST, README FIRST
 //
 // Bluepad32 has a built-in interactive console.
-// By default it is enabled (hey, this is a great feature!).
+// By default, it is enabled (hey, this is a great feature!).
 // But it is incompatible with Arduino "Serial" class.
 //
 // Instead of using "Serial" you can use Bluepad32 "Console" class instead.
@@ -139,44 +122,44 @@ float limit_range(float value, float min, float max)
 // from "sdkconfig.defaults" with:
 //    CONFIG_BLUEPAD32_USB_CONSOLE_ENABLE=n
 
-GamepadPtr myGamepads[BP32_MAX_GAMEPADS];
+ControllerPtr myControllers[BP32_MAX_GAMEPADS];
 
 // This callback gets called any time a new gamepad is connected.
 // Up to 4 gamepads can be connected at the same time.
-void onConnectedGamepad(GamepadPtr gp) {
+void onConnectedController(ControllerPtr ctl) {
     bool foundEmptySlot = false;
     for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
-        if (myGamepads[i] == nullptr) {
-            Console.printf("CALLBACK: Gamepad is connected, index=%d\n", i);
+        if (myControllers[i] == nullptr) {
+            Console.printf("CALLBACK: Controller is connected, index=%d\n", i);
             // Additionally, you can get certain gamepad properties like:
             // Model, VID, PID, BTAddr, flags, etc.
-            GamepadProperties properties = gp->getProperties();
-            Console.printf("Gamepad model: %s, VID=0x%04x, PID=0x%04x\n", gp->getModelName(), properties.vendor_id,
+            ControllerProperties properties = ctl->getProperties();
+            Console.printf("Controller model: %s, VID=0x%04x, PID=0x%04x\n", ctl->getModelName(), properties.vendor_id,
                            properties.product_id);
-            myGamepads[i] = gp;
+            myControllers[i] = ctl;
             foundEmptySlot = true;
             break;
         }
     }
     if (!foundEmptySlot) {
-        Console.println("CALLBACK: Gamepad connected, but could not found empty slot");
+        Console.println("CALLBACK: Controller connected, but could not found empty slot");
     }
 }
 
-void onDisconnectedGamepad(GamepadPtr gp) {
-    bool foundGamepad = false;
+void onDisconnectedController(ControllerPtr ctl) {
+    bool foundController = false;
 
     for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
-        if (myGamepads[i] == gp) {
-            Console.printf("CALLBACK: Gamepad is disconnected from index=%d\n", i);
-            myGamepads[i] = nullptr;
-            foundGamepad = true;
+        if (myControllers[i] == ctl) {
+            Console.printf("CALLBACK: Controller disconnected from index=%d\n", i);
+            myControllers[i] = nullptr;
+            foundController = true;
             break;
         }
     }
 
-    if (!foundGamepad) {
-        Console.println("CALLBACK: Gamepad disconnected, but not found in myGamepads");
+    if (!foundController) {
+        Console.println("CALLBACK: Controller disconnected, but not found in myControllers");
     }
 }
 
@@ -186,59 +169,64 @@ void setup() {
     const uint8_t* addr = BP32.localBdAddress();
     Console.printf("BD Addr: %2X:%2X:%2X:%2X:%2X:%2X\n", addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
 
-    // Setup the Bluepad32 callbacks
-    BP32.setup(&onConnectedGamepad, &onDisconnectedGamepad);
+    // Setup the Bluepad32 callbacks, and the default behavior for scanning or not.
+    // By default, if the "startScanning" parameter is not passed, it will do the "start scanning".
+    // Notice that "Start scanning" will try to auto-connect to devices that are compatible with Bluepad32.
+    // E.g: if a Gamepad, keyboard or mouse are detected, it will try to auto connect to them.
+    bool startScanning = true;
+    BP32.setup(&onConnectedController, &onDisconnectedController, startScanning);
+
+    // Notice that scanning can be stopped / started at any time by calling:
+    // BP32.enableNewBluetoothConnections(enabled);
 
     // "forgetBluetoothKeys()" should be called when the user performs
     // a "device factory reset", or similar.
     // Calling "forgetBluetoothKeys" in setup() just as an example.
     // Forgetting Bluetooth keys prevents "paired" gamepads to reconnect.
-    // But might also fix some connection / re-connection issues.
+    // But it might also fix some connection / re-connection issues.
     BP32.forgetBluetoothKeys();
 
     motor_control_setup();
+
+    // Enables mouse / touchpad support for gamepads that support them.
+    // When enabled, controllers like DualSense and DualShock4 generate two connected devices:
+    // - First one: the gamepad
+    // - Second one, which is a "virtual device", is a mouse.
+    // By default, it is disabled.
+    BP32.enableVirtualDevice(false);
+
+    // Enables the BLE Service in Bluepad32.
+    // This service allows clients, like a mobile app, to setup and see the state of Bluepad32.
+    // By default, it is disabled.
+    BP32.enableBLEService(false);
 }
 
-// Arduino loop function. Runs in CPU 1
+// Arduino loop function. Runs in CPU 1.
 void loop() {
-    // This call fetches all the gamepad info from the NINA (ESP32) module.
-    // Just call this function in your main loop.
-    // The gamepads pointer (the ones received in the callbacks) gets updated
-    // automatically.
-    BP32.update();
-
-    // It is safe to always do this before using the gamepad API.
-    // This guarantees that the gamepad is valid and connected.
-    for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
-        GamepadPtr myGamepad = myGamepads[i];
-        float rightMotor = 0.0;
-        float leftMotor = 0.0;
-
-        if (myGamepad && myGamepad->isConnected()) {
-            /*myGamepad->axisX(),        // (-511 - 512) left X Axis
-            myGamepad->axisY(),        // (-511 - 512) left Y axis
-            myGamepad->axisRX(),       // (-511 - 512) right X axis
-            myGamepad->axisRY(),       // (-511 - 512) right Y axis
-            myGamepad->brake(),        // (0 - 1023): brake button
-            myGamepad->throttle(),     // (0 - 1023): throttle (AKA gas) button*/
-
-            /*if (myGamepad->throttle() > DEADBAND) {
-                rightMotor = 20 + myGamepad->throttle() / 1023.0 * 80;
-                leftMotor = 20 + myGamepad->throttle() / 1023.0 * 80;
+    float rightMotor = 0.0;
+    float leftMotor = 0.0;
+    // This call fetches all the controllers' data.
+    // Call this function in your main loop.
+    bool dataUpdated = BP32.update();
+    
+    if (dataUpdated) {
+        for (auto myController : myControllers) {
+            if (!myController || !myController->isConnected() || !myController->hasData()) {
+                continue;
             }
-
-            if (myGamepad->brake() > DEADBAND) {
-                rightMotor = -20 + myGamepad->brake() / 1023.0 * -80;
-                leftMotor = -20 + myGamepad->brake() / 1023.0 * -80;
-            }*/
-            float leftxValue = myGamepad->axisX();
-            float leftyValue = myGamepad->axisY();
-            float rightxValue = myGamepad->axisRX();
-            float rightyValue = myGamepad->axisRY();
+            if (!myController->isGamepad()) {
+                Console.printf("Unsupported controller\n");
+                continue;
+            }
+            
+            float leftxValue = myController->axisX();
+            float leftyValue = myController->axisY();
+            float rightxValue = myController->axisRX();
+            float rightyValue = myController->axisRY();
             float x = rightxValue;
             float y = rightyValue;
-            uint8_t dPad = myGamepad->dpad();
-            bool isStartPressed = myGamepad->miscHome();
+            uint8_t dPad = myController->dpad();
+            bool isStartPressed = myController->miscHome();
 
             if (fabs(leftxValue) > fabs(rightxValue)) {
                 x = leftxValue;
@@ -304,8 +292,9 @@ void loop() {
             set_motor_pwm(MCPWM_OPR_B, leftMotor);
         }
     }
+
     // The main loop must have some kind of "yield to lower priority task" event.
-    // Otherwise the watchdog will get triggered.
+    // Otherwise, the watchdog will get triggered.
     // If your main loop doesn't have one, just add a simple `vTaskDelay(1)`.
     // Detailed info here:
     // https://stackoverflow.com/questions/66278271/task-watchdog-got-triggered-the-tasks-did-not-reset-the-watchdog-in-time

@@ -40,8 +40,12 @@
 
 /**
  * Implementation of the GATT TX Power Service Server 
- * To use with your application, add '#import <tx_power_service.gatt' to your .gatt file
+ * To use with your application, add `#import <tx_power_service.gatt>` to your .gatt file
  */
+
+#ifdef ENABLE_TESTING_SUPPORT
+#include <stdio.h>
+#endif
 
 #include "btstack_defines.h"
 #include "ble/att_db.h"
@@ -77,10 +81,13 @@ static uint16_t tx_power_service_read_callback(hci_con_handle_t con_handle, uint
 
 
 static int tx_power_service_write_callback(hci_con_handle_t con_handle, uint16_t attribute_handle, uint16_t transaction_mode, uint16_t offset, uint8_t *buffer, uint16_t buffer_size){
-    UNUSED(transaction_mode);
     UNUSED(offset);
     UNUSED(buffer_size);
     UNUSED(con_handle);
+
+    if (transaction_mode != ATT_TRANSACTION_MODE_NONE){
+        return 0;
+    }
 
     if (attribute_handle == tx_power_level_client_configuration_handle){
         tx_power_level_client_configuration = little_endian_read_16(buffer, 0);
@@ -103,6 +110,13 @@ void tx_power_service_server_init(int8_t tx_power_level_dBm){
 	// get characteristic value handle and client configuration handle
 	tx_power_level_value_handle = gatt_server_get_value_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_TX_POWER_LEVEL);
     tx_power_level_client_configuration_handle = gatt_server_get_client_configuration_handle_for_characteristic_with_uuid16(start_handle, end_handle, ORG_BLUETOOTH_CHARACTERISTIC_TX_POWER_LEVEL);
+
+#ifdef ENABLE_TESTING_SUPPORT
+    printf("TXP 0x%02x - 0x%02x \n", start_handle, end_handle);
+    printf("    tx_power_level            0x%02x \n", tx_power_level_value_handle);
+    printf("    tx_power_level CCC        0x%02x \n", tx_power_level_client_configuration_handle);
+#endif
+    log_info("TX Power Service Server 0x%02x-0x%02x", start_handle, end_handle);
 
 	// register service with ATT Server
 	tx_power_service_handler.start_handle   = start_handle;

@@ -4,6 +4,115 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.2] - 2025-07-13
+- Arduino Core v3.2.1
+  - Requires ESP-IDF 5.4.2
+- ESP32-S3 Compiles Ok on PlatformIO
+- Compiles Ok on PlatformIO [Github Issue#17][github_issue_17]
+
+[github_issue_17]: https://github.com/ricardoquesada/esp-idf-arduino-bluepad32-template/issues/17
+
+## [4.2.1] - 2025-04-09
+- Arduino Core v3.2
+  - Requires ESP-IDF 5.4
+- Increase stack for ESP32-C6 [Github Issue#149][github_issue_149]
+- BTstack 1.6.2 mater branch
+
+[github_issue_149]: https://github.com/ricardoquesada/bluepad32/issues/149
+
+
+## [4.2.0] - 2025-01-03
+- Bluepad32 v4.2.0
+- BTstack pre-v1.6.2
+- Arduino Core v3.1.0
+  - Requires ESP-IDF 5.3
+- Added "arduino_get_internal_hid_device". Returns a uni_hid_device_t
+- Set correct PlayerLED when controller connects
+- BP32.setup() has an optional 3rd parameter that will start scanning if true.
+  - If no parameter is passed, it will start scanning.
+  - What's changed is that "start scanning" was on by default when "on_init"
+    was called. Now the behavior was moved to BP32.Setup().
+  - Part of issue [Github Issue #130][github_issue_130]
+- Updated [platformio.ini][platformio_ini]
+  - See [PlatformIO issue 1225][github_pio_issue_1225] to learn what's going on between PlatformIO and Espressif.
+  - You might need to uninstall PlatformIO first. E.g: `rm -rf ~/.platformio`
+- Updated [README][readme_md] with more detailed IDE options
+
+[github_issue_130]: https://github.com/ricardoquesada/bluepad32/issues/130
+[github_pio_issue_1225]: https://github.com/platformio/platform-espressif32/issues/1225
+[platformio_ini]: https://github.com/ricardoquesada/esp-idf-arduino-bluepad32-template/blob/main/platformio.ini
+[readme_md]: https://github.com/ricardoquesada/esp-idf-arduino-bluepad32-template/blob/main/README.md
+
+## [4.1.0] - 2024-06-03
+- Bluepad32 v4.1.0
+- BTstack v1.6.1
+- Arduino Core 2.0.17
+
+## [4.0.4] - 2024-04-20
+- Bluepad32 v4.0.4
+- Arduino 2.0.15
+- BTstack cb92fd343998b0ca7a4cb5700654429febb21b44
+- Arduino API:
+  - `Controller.isAnyKeyPressed()` added
+
+## [4.0.3] - 2024-04-09
+- Bluepad32 / BTstack: upstream v4.0.3
+
+## [4.0.2] - 2024-04-03
+- Bluepad32 / BTstack: upstream v4.0.2
+
+## [4.0.1] - 2024-04-02
+- Bluepad32 / BTstack: upstream v4.0.1
+
+## [4.0] - 2024-03-24
+- Bluepad32 / BTstack: upstream v4.0
+
+## [4.0-rc0] - 2024-03-20
+- Bluepad32 / BTstack: using Bluepad32 v4.0-rc0
+- Arduino API:
+  - `Controller.playDualRumble(...)` added
+  - `Controller.setRumble(...)` deprecated. Internally it calls `playDualRumble()`
+
+## [4.0-beta2] - 2024-03-09
+- Arduino core: 03da972492323ca35382c7a966cf41a992fa4bb1
+- Arduino API:
+    - `BP32.enableBLEService(bool)` to enable/disable the BLE service
+    - `Cosole.write()` and `Console.println(void)` added.
+- Enable Single Large APP partition by default. Before it was small
+- Bluepad32 Arduino: Add missing functionality to `setup()` and `loop()` regarding WDT.
+
+## [4.0-beta1] - 2024-02-11
+- Bluepad32 v4.0-beta1 upstream
+- Arduino API:
+    - `BP32.update()` returns `true` if data was received.
+    - `Controller.hasData()` return `true` if data was received since
+      `BP32.update()` was called.
+- Arduino Sketch: updated to use new API
+
+## [4.0-beta0] - 2024-02-04
+- Bluepad32 v4.0-beta0
+- BTstack develop branch: 4b3f8617054370b0e96650ee65edea1c23591ed4
+
+## [3.10.2] - 2023-11-14
+- Bluepad32 v3.10.2
+- BTstack develop branch: d30de50130b2838470ab89e3ae004198f0188810
+
+## [3.10.1] - 2023-11-05
+- Bluepad32 v3.10.1
+
+## [3.9.0] - 2023-09-17
+- Bluepad32 v3.9.0
+- Arduino Core v2.0.12
+- BTstack develop branch: 6d7084813262308410501e1cf0c602a6ec2b0471
+
+## [3.8.2] - 2023-08-02
+- Bluepad32 v3.8.2
+- Arduino Core v2.0.11
+
+## [3.8.1] - 2023-07-30
+- Bluepad32 v3.8.1
+- BTstack v1.5.6.3
+
 ## [3.7.3] - 2023-06-17
 - Bluepad32 v3.7.3
 

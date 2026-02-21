@@ -312,7 +312,7 @@ void hsp_ag_init(uint8_t rfcomm_channel_nr){
 
     rfcomm_register_service(packet_handler, rfcomm_channel_nr, 0xffff);  // reserved channel, mtu limited by l2cap
 
-    hsp_ag_sco_packet_types = SCO_PACKET_TYPES_ALL;
+    hsp_ag_sco_packet_types = SCO_PACKET_TYPES_EV3 | SCO_PACKET_TYPES_2EV3 | SCO_PACKET_TYPES_HV3;
     hsp_ag_reset_state();
 }
 
@@ -531,9 +531,8 @@ static void hsp_run(void){
                 int gain = hsp_ag_microphone_gain;
                 hsp_ag_microphone_gain = -1;
                 char buffer[12];
-                snprintf(buffer, sizeof(buffer), "\r\n%s=%d\r\n",
+                btstack_snprintf_assert_complete(buffer, sizeof(buffer), "\r\n%s=%d\r\n",
                          HSP_MICROPHONE_GAIN, gain);
-                buffer[sizeof(buffer) - 1] = 0;
                 hsp_ag_send_str_over_rfcomm(hsp_ag_rfcomm_cid, buffer);
                 break;
             }
@@ -546,9 +545,8 @@ static void hsp_run(void){
                 int gain = hsp_ag_speaker_gain;
                 hsp_ag_speaker_gain = -1;
                 char buffer[12];
-                snprintf(buffer, sizeof(buffer), "\r\n%s=%d\r\n",
+                btstack_snprintf_assert_complete(buffer, sizeof(buffer), "\r\n%s=%d\r\n",
                          HSP_SPEAKER_GAIN, gain);
-                buffer[sizeof(buffer) - 1] = 0;
                 hsp_ag_send_str_over_rfcomm(hsp_ag_rfcomm_cid, buffer);
                 break;
             }

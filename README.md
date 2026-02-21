@@ -18,7 +18,10 @@
 4) If the robot does not drive straight, you can hold the `start` / `home` button while pressing `left` or `right` on the dpad. This compensates the balance of the motors to favor the direction you pressed. The maximum compensation is reached after 10 button presses. This setting does not persist after a restart.
 5) You can reset the motor balance by holding the `start` / `home` button and pressing `up` or `down` on the dpad.
 
-*Original readme of the template project below:*
+---
+
+> [!NOTE]
+> You should find everything you need to flash and start using your [Micro Invaders robot](https://github.com/robot-uprising-hq/ai-robot-hardware) above. You can find the original readme of the template project below:
 
 
 # ESP-IDF + Arduino + Bluepad32 template app

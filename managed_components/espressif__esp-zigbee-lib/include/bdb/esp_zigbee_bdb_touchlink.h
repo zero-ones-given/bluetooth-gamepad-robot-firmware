@@ -13,18 +13,6 @@ extern "C" {
 
 #include "esp_zigbee_type.h"
 
-/**
- * @brief BDB commissioning mode mask bits
- *
- */
-typedef enum esp_zb_bdb_commissioning_mode_mask_s {
-    ESP_ZB_BDB_TOUCHLINK_COMMISSIONING = 0x01,  /*!< if bit is set, attempt Touchlink commissioning */
-    ESP_ZB_BDB_NETWORK_STEERING        = 0x02,  /*!< if bit is set, attempt network steering */
-    ESP_ZB_BDB_NETWORK_FORMATION       = 0x04,  /*!< if bit is set, attempt to form a network, according to device type */
-    ESP_ZB_BDB_FINDING_N_BINDING       = 0x08,  /*!< if bit is set, attempt finding and binding */
-    ESP_ZB_BDB_TOUCHLINK_TARGET        = 0x40,  /*!< if bit is set, attempt become touchlink target */
-} esp_zb_bdb_commissioning_mode_mask_t;
-
 /** @brief Enumeration of touchlink actions, that should be approved by end user application.
  *
  */
@@ -143,7 +131,7 @@ esp_err_t esp_zb_bdb_cancel_touchlink_target(void);
 /**
  * @brief Register ZLL identify request handler
  *
- * @param[in] cb A callback for zll identify notificaion, refer to esp_zb_zll_identify_req_callback_t
+ * @param[in] cb A callback for zll identify notification, refer to esp_zb_zll_identify_req_callback_t
  */
 void esp_zb_zll_identify_req_handler_register(esp_zb_zll_identify_req_callback_t cb);
 

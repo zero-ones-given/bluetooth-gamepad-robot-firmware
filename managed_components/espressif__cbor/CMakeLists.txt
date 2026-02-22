@@ -10,13 +10,13 @@ idf_component_register(SRCS "tinycbor/src/cborencoder_close_container_checked.c"
                             "tinycbor/src/cbortojson.c"
                             "tinycbor/src/cborvalidation.c"
                             "tinycbor/src/open_memstream.c"
-                    INCLUDE_DIRS "port/include"
-                    PRIV_INCLUDE_DIRS "tinycbor/src")
+                    INCLUDE_DIRS "tinycbor/src")
 
 # for open_memstream.c
-set_source_files_properties(tinycbor/src/open_memstream.c PROPERTIES COMPILE_DEFINITIONS "__linux__")
+set_source_files_properties(tinycbor/src/open_memstream.c PROPERTIES
+                            COMPILE_DEFINITIONS "__linux__")
 
-# workaround for the fact that we are passing -ffreestanding to Clang
-if(CMAKE_C_COMPILER_ID MATCHES "Clang")
-    target_compile_options(${COMPONENT_LIB} PRIVATE "-U __STDC_HOSTED__")
-endif()
+# Fix unreachable macro redefinition issue between ESP-IDF toolchain and tinycbor
+# by force-including a header that resolves the conflict
+target_compile_options(${COMPONENT_LIB} PRIVATE
+                       "SHELL:-include \"${CMAKE_CURRENT_SOURCE_DIR}/port/include/unreachable_fix.h\"")

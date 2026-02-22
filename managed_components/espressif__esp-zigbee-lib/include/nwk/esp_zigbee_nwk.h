@@ -54,7 +54,7 @@ typedef enum {
 #define ESP_ZB_NWK_MAX_SOURCE_ROUTE 5
 
 /**
- * @brief Iterator used to iterate through the tables of network informations.
+ * @brief Iterator used to iterate through the tables of network information.
  *
  */
 typedef uint16_t esp_zb_nwk_info_iterator_t;
@@ -244,14 +244,14 @@ void esp_zb_get_long_address(esp_zb_ieee_addr_t addr);
 uint16_t esp_zb_get_short_address(void);
 
 /**
- * @brief Set the Zigbee network extended PAN ID.
+ * @brief Set the extended PAN ID used by the Zigbee device for joining or forming a network.
  *
  * @param ext_pan_id An 64-bit of extended PAN ID, which is presented in little-endian.
  */
 void esp_zb_set_extended_pan_id(const esp_zb_ieee_addr_t ext_pan_id);
 
 /**
- * @brief   Get the Zigbee network extended PAN ID.
+ * @brief Get the extended PAN ID of Zigbee device.
  *
  * @note This function will return back a pointer to 64-bit of extended PAN ID.
  *
@@ -330,7 +330,7 @@ esp_zb_nwk_device_type_t esp_zb_get_network_device_role(void);
  *
  * @return - ESP_OK on success
  *         - ESP_ERR_NOT_FOUND on finish iteration
- *         - ESP_ERR_INVALID_ARG if arguements are invalid
+ *         - ESP_ERR_INVALID_ARG if arguments are invalid
  *
  */
 esp_err_t esp_zb_nwk_get_next_neighbor(esp_zb_nwk_info_iterator_t *iterator, esp_zb_nwk_neighbor_info_t *nbr_info);
@@ -343,7 +343,7 @@ esp_err_t esp_zb_nwk_get_next_neighbor(esp_zb_nwk_info_iterator_t *iterator, esp
  *
  * @return - ESP_OK on success
  *         - ESP_ERR_NOT_FOUND on finish iteration
- *         - ESP_ERR_INVALID_ARG if arguements are invalid
+ *         - ESP_ERR_INVALID_ARG if arguments are invalid
  *
  */
 esp_err_t esp_zb_nwk_get_next_route(esp_zb_nwk_info_iterator_t *iterator, esp_zb_nwk_route_info_t *route_info);
@@ -356,7 +356,7 @@ esp_err_t esp_zb_nwk_get_next_route(esp_zb_nwk_info_iterator_t *iterator, esp_zb
  *
  * @return - ESP_OK on success
  *         - ESP_ERR_NOT_FOUND on finish iteration
- *         - ESP_ERR_INVALID_ARG if arguements are invalid
+ *         - ESP_ERR_INVALID_ARG if arguments are invalid
  *
  */
 esp_err_t esp_zb_nwk_get_next_route_record(esp_zb_nwk_info_iterator_t *iterator, esp_zb_nwk_route_record_info_t *route_record_info);
@@ -378,6 +378,22 @@ uint8_t esp_zb_nwk_get_link_status_period(void);
  *
  */
 esp_err_t esp_zb_nwk_set_link_status_period(uint8_t period);
+
+/**
+ * @brief Set the nwkExtendedPANID attribute in the NIB.
+ *
+ * @param[in] ext_pan_id A 64-bit extended PAN ID in little-endian format to be set in the NIB.
+ */
+void esp_zb_nwk_set_extended_pan_id(esp_zb_ext_pan_id_t ext_pan_id);
+
+/**
+ * @brief Get the nwkExtendedPANID attribute from the NIB.
+ *
+ * @param[out] ext_pan_id A 64-bit extended PAN ID in little-endian format retrieved from the NIB,
+ *                        which represents the extended PAN ID of the network to which the device is joined.
+ *                        If the value is 0x0000000000000000, the device is not connected to any network.
+ */
+void esp_zb_nwk_get_extended_pan_id(esp_zb_ext_pan_id_t ext_pan_id);
 
 #ifdef __cplusplus
 }

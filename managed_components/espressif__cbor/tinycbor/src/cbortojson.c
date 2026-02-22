@@ -25,16 +25,17 @@
 #define _BSD_SOURCE 1
 #define _DEFAULT_SOURCE 1
 #define _GNU_SOURCE 1
-#define _POSIX_C_SOURCE 200809L
 #ifndef __STDC_LIMIT_MACROS
 #  define __STDC_LIMIT_MACROS 1
 #endif
+#define __STDC_WANT_IEC_60559_TYPES_EXT__
 
 #include "cbor.h"
 #include "cborjson.h"
 #include "cborinternal_p.h"
 #include "compilersupport_p.h"
 #include "cborinternal_p.h"
+#include <memory.h>
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -166,11 +167,19 @@ typedef struct ConversionStatus {
     int flags;
 } ConversionStatus;
 
-static CborError value_to_json(FILE *out, CborValue *it, int flags, CborType type, ConversionStatus *status);
+static CborError value_to_json(FILE *out, CborValue *it, int flags, CborType type,
+                               int nestingLevel, ConversionStatus *status);
+
+static void append_hex(void *buffer, uint8_t byte)
+{
+    static const char characters[] = "0123456789abcdef";
+    char *str = buffer;
+    str[0] = characters[byte >> 4];
+    str[1] = characters[byte & 0xf];
+}
 
 static CborError dump_bytestring_base16(char **result, CborValue *it)
 {
-    static const char characters[] = "0123456789abcdef";
     size_t i;
     size_t n = 0;
     uint8_t *buffer;
@@ -179,7 +188,7 @@ static CborError dump_bytestring_base16(char **result, CborValue *it)
         return err;
 
     /* a Base16 (hex) output is twice as big as our buffer */
-    buffer = (uint8_t *)malloc(n * 2 + 1);
+    buffer = (uint8_t *)cbor_malloc(n * 2 + 1);
     if (buffer == NULL)
         /* out of memory */
         return CborErrorOutOfMemory;
@@ -193,8 +202,7 @@ static CborError dump_bytestring_base16(char **result, CborValue *it)
 
     for (i = 0; i < n; ++i) {
         uint8_t byte = buffer[n + i];
-        buffer[2*i]     = characters[byte >> 4];
-        buffer[2*i + 1] = characters[byte & 0xf];
+        append_hex(buffer + 2 * i, byte);
     }
     return CborNoError;
 }
@@ -209,7 +217,7 @@ static CborError generic_dump_base64(char **result, CborValue *it, const char al
 
     /* a Base64 output (untruncated) has 4 bytes for every 3 in the input */
     size_t len = (n + 5) / 3 * 4;
-    buffer = (uint8_t *)malloc(len + 1);
+    buffer = (uint8_t *)cbor_malloc(len + 1);
     if (buffer == NULL)
         /* out of memory */
         return CborErrorOutOfMemory;
@@ -291,6 +299,96 @@ static CborError dump_bytestring_base64url(char **result, CborValue *it)
     return generic_dump_base64(result, it, alphabet);
 }
 
+static CborError escape_text_string(char **str, size_t *alloc, size_t *offsetp, const char *input, size_t len)
+{
+    /* JSON requires escaping some characters in strings, so we iterate and
+     * escape as necessary
+     * https://www.rfc-editor.org/rfc/rfc8259#section-7:
+     *  All Unicode characters may be placed within the
+     *  quotation marks, except for the characters that MUST be escaped:
+     *  quotation mark, reverse solidus, and the control characters (U+0000
+     *  through U+001F).
+     * We additionally choose to escape BS, HT, CR, LF and FF.
+     */
+    char *buf = *str;
+
+    /* Ensure we have enough space for this chunk. In the worst case, we
+     * have 6 escaped characters per input character.
+     *
+     * The overflow checking here is only practically useful for 32-bit
+     * machines, as SIZE_MAX/6 for a 64-bit machine is 2.6667 exabytes.
+     * That is much more than any current architecture can even address and
+     * cbor_value_get_text_string_chunk() only works for data already
+     * loaded into memory.
+     */
+    size_t needed;
+    size_t offset = offsetp ? *offsetp : 0;
+    if (mul_check_overflow(len, 6, &needed) || add_check_overflow(needed, offset, &needed)
+            || add_check_overflow(needed, 1, &needed)) {
+        return CborErrorDataTooLarge;
+    }
+    if (!alloc || needed > *alloc) {
+        buf = cbor_realloc(buf, needed);
+        if (!buf)
+            return CborErrorOutOfMemory;
+        if (alloc)
+            *alloc = needed;
+    }
+
+    for (size_t i = 0; i < len; ++i) {
+        static const char escapeChars[] = "\b\t\n\r\f\"\\";
+        static const char escapedChars[] = "btnrf\"\\";
+        unsigned char c = input[i];
+
+        char *esc = c > 0 ? strchr(escapeChars, c) : NULL;
+        if (esc) {
+            buf[offset++] = '\\';
+            buf[offset++] = escapedChars[esc - escapeChars];
+        } else if (c <= 0x1F) {
+            buf[offset++] = '\\';
+            buf[offset++] = 'u';
+            buf[offset++] = '0';
+            buf[offset++] = '0';
+            append_hex(buf + offset, c);
+            offset += 2;
+        } else {
+            buf[offset++] = c;
+        }
+    }
+    buf[offset] = '\0';
+    *str = buf;
+    if (offsetp)
+        *offsetp = offset;
+    return CborNoError;
+}
+
+static CborError text_string_to_escaped(char **str, CborValue *it)
+{
+    size_t alloc = 0, offset = 0;
+    CborError err;
+
+    *str = NULL;
+    err = cbor_value_begin_string_iteration(it);
+    while (err == CborNoError) {
+        const char *chunk;
+        size_t len;
+        err = cbor_value_get_text_string_chunk(it, &chunk, &len, it);
+        if (err == CborNoError)
+            err = escape_text_string(str, &alloc, &offset, chunk, len);
+    }
+
+    if (likely(err == CborErrorNoMoreStringChunks)) {
+        /* success */
+        if (!*str)
+            *str = strdup("");  // wasteful, but very atypical
+        return cbor_value_finish_string_iteration(it);
+    }
+
+    cbor_free(*str);
+    *str = NULL;
+    return err;
+}
+
 static CborError add_value_metadata(FILE *out, CborType type, const ConversionStatus *status)
 {
     int flags = status->flags;
@@ -327,11 +425,13 @@ static CborError add_value_metadata(FILE *out, CborType type, const ConversionSt
     return CborNoError;
 }
 
-static CborError find_tagged_type(CborValue *it, CborTag *tag, CborType *type)
+static CborError find_tagged_type(CborValue *it, CborTag *tag, CborType *type, int nestingLevel)
 {
     CborError err = CborNoError;
     *type = cbor_value_get_type(it);
     while (*type == CborTagType) {
+        if (nestingLevel-- == 0)
+            return CborErrorNestingTooDeep;
         cbor_value_get_tag(it, tag);    /* can't fail */
         err = cbor_value_advance_fixed(it);
         if (err)
@@ -342,7 +442,7 @@ static CborError find_tagged_type(CborValue *it, CborTag *tag, CborType *type)
     return err;
 }
 
-static CborError tagged_value_to_json(FILE *out, CborValue *it, int flags, ConversionStatus *status)
+static CborError tagged_value_to_json(FILE *out, CborValue *it, int flags, int nestingLevel, ConversionStatus *status)
 {
     CborTag tag;
     CborError err;
@@ -357,7 +457,7 @@ static CborError tagged_value_to_json(FILE *out, CborValue *it, int flags, Conve
             return CborErrorIO;
 
         CborType type = cbor_value_get_type(it);
-        err = value_to_json(out, it, flags, type, status);
+        err = value_to_json(out, it, flags, type, nestingLevel, status);
         if (err)
             return err;
         if (flags & CborConvertAddMetadata && status->flags) {
@@ -373,7 +473,7 @@ static CborError tagged_value_to_json(FILE *out, CborValue *it, int flags, Conve
     }
 
     CborType type;
-    err = find_tagged_type(it, &status->lastTag, &type);
+    err = find_tagged_type(it, &status->lastTag, &type, nestingLevel);
     if (err)
         return err;
     tag = status->lastTag;
@@ -395,13 +495,13 @@ static CborError tagged_value_to_json(FILE *out, CborValue *it, int flags, Conve
         if (err)
             return err;
         err = fprintf(out, "\"%s%s\"", pre, str) < 0 ? CborErrorIO : CborNoError;
-        free(str);
+        cbor_free(str);
         status->flags = TypeWasNotNative | TypeWasTagged | CborByteStringType;
         return err;
     }
 
     /* no special handling */
-    err = value_to_json(out, it, flags, type, status);
+    err = value_to_json(out, it, flags, type, nestingLevel, status);
     status->flags |= TypeWasTagged | type;
     return err;
 }
@@ -416,19 +516,25 @@ static CborError stringify_map_key(char **key, CborValue *it, int flags, CborTyp
     return CborErrorJsonNotImplemented;
 #else
     size_t size;
+    char *stringified;
 
-    FILE *memstream = open_memstream(key, &size);
+    FILE *memstream = open_memstream(&stringified, &size);
     if (memstream == NULL)
         return CborErrorOutOfMemory;        /* could also be EMFILE, but it's unlikely */
     CborError err = cbor_value_to_pretty_advance(memstream, it);
 
-    if (unlikely(fclose(memstream) < 0 || *key == NULL))
+    if (unlikely(fclose(memstream) < 0 || stringified == NULL))
         return CborErrorInternalError;
+    if (err == CborNoError) {
+        /* escape the stringified CBOR stream */
+        err = escape_text_string(key, NULL, NULL, stringified, size);
+    }
+    cbor_free(stringified);
     return err;
 #endif
 }
 
-static CborError array_to_json(FILE *out, CborValue *it, int flags, ConversionStatus *status)
+static CborError array_to_json(FILE *out, CborValue *it, int flags, int nestingLevel, ConversionStatus *status)
 {
     const char *comma = "";
     while (!cbor_value_at_end(it)) {
@@ -436,27 +542,26 @@ static CborError array_to_json(FILE *out, CborValue *it, int flags, ConversionSt
             return CborErrorIO;
         comma = ",";
 
-        CborError err = value_to_json(out, it, flags, cbor_value_get_type(it), status);
+        CborError err = value_to_json(out, it, flags, cbor_value_get_type(it), nestingLevel, status);
         if (err)
             return err;
     }
     return CborNoError;
 }
 
-static CborError map_to_json(FILE *out, CborValue *it, int flags, ConversionStatus *status)
+static CborError map_to_json(FILE *out, CborValue *it, int flags, int nestingLevel, ConversionStatus *status)
 {
     const char *comma = "";
     CborError err;
     while (!cbor_value_at_end(it)) {
-        char *key;
+        char *key = NULL;
         if (fprintf(out, "%s", comma) < 0)
             return CborErrorIO;
         comma = ",";
 
         CborType keyType = cbor_value_get_type(it);
         if (likely(keyType == CborTextStringType)) {
-            size_t n = 0;
-            err = cbor_value_dup_text_string(it, &key, &n, it);
+            err = text_string_to_escaped(&key, it);
         } else if (flags & CborConvertStringifyMapKeys) {
             err = stringify_map_key(&key, it, flags, keyType);
         } else {
@@ -467,13 +572,13 @@ static CborError map_to_json(FILE *out, CborValue *it, int flags, ConversionStat
 
         /* first, print the key */
         if (fprintf(out, "\"%s\":", key) < 0) {
-            free(key);
+            cbor_free(key);
             return CborErrorIO;
         }
 
         /* then, print the value */
         CborType valueType = cbor_value_get_type(it);
-        err = value_to_json(out, it, flags, valueType, status);
+        err = value_to_json(out, it, flags, valueType, nestingLevel, status);
 
         /* finally, print any metadata we may have */
         if (flags & CborConvertAddMetadata) {
@@ -489,17 +594,21 @@ static CborError map_to_json(FILE *out, CborValue *it, int flags, ConversionStat
             }
         }
 
-        free(key);
+        cbor_free(key);
         if (err)
             return err;
     }
     return CborNoError;
 }
 
-static CborError value_to_json(FILE *out, CborValue *it, int flags, CborType type, ConversionStatus *status)
+static CborError value_to_json(FILE *out, CborValue *it, int flags, CborType type,
+                               int nestingLevel, ConversionStatus *status)
 {
     CborError err;
     status->flags = 0;
+
+    if (nestingLevel == 0)
+        return CborErrorNestingTooDeep;
 
     switch (type) {
     case CborArrayType:
@@ -515,8 +624,8 @@ static CborError value_to_json(FILE *out, CborValue *it, int flags, CborType typ
             return CborErrorIO;
 
         err = (type == CborArrayType) ?
-                  array_to_json(out, &recursed, flags, status) :
-                  map_to_json(out, &recursed, flags, status);
+                  array_to_json(out, &recursed, flags, nestingLevel - 1, status) :
+                  map_to_json(out, &recursed, flags, nestingLevel - 1, status);
         if (err) {
             copy_current_position(it, &recursed);
             return err;       /* parse error */
@@ -562,18 +671,17 @@ static CborError value_to_json(FILE *out, CborValue *it, int flags, CborType typ
             err = dump_bytestring_base64url(&str, it);
             status->flags = TypeWasNotNative;
         } else {
-            size_t n = 0;
-            err = cbor_value_dup_text_string(it, &str, &n, it);
+            err = text_string_to_escaped(&str, it);
         }
         if (err)
             return err;
         err = (fprintf(out, "\"%s\"", str) < 0) ? CborErrorIO : CborNoError;
-        free(str);
+        cbor_free(str);
         return err;
     }
 
     case CborTagType:
-        return tagged_value_to_json(out, it, flags, status);
+        return tagged_value_to_json(out, it, flags, nestingLevel - 1, status);
 
     case CborSimpleType: {
         uint8_t simple_type;
@@ -703,7 +811,8 @@ static CborError value_to_json(FILE *out, CborValue *it, int flags, CborType typ
 CborError cbor_value_to_json_advance(FILE *out, CborValue *value, int flags)
 {
     ConversionStatus status;
-    return value_to_json(out, value, flags, cbor_value_get_type(value), &status);
+    return value_to_json(out, value, flags, cbor_value_get_type(value), CBOR_PARSER_MAX_RECURSIONS,
+                         &status);
 }
 
 /** @} */

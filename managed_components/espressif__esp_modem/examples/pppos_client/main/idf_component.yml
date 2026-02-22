@@ -1,6 +1,8 @@
 dependencies:
+  console_cmd_ping:
+    version: '*'
   espressif/esp_modem:
-    version: ^1.0.0
+    version: ^2
   espressif/esp_modem_usb_dte:
     rules:
     - if: idf_version >=4.4

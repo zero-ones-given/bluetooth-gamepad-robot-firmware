@@ -38,6 +38,7 @@ float x_value = 0;
 float y_value = 0;
 float max_value = 100.0;
 bool is_boosting = false;
+bool shoulder_button_previous_status = false;
 
 void gpio_init()
 {
@@ -299,9 +300,9 @@ void loop() {
             }
 
             int64_t time_since_last_boost = (esp_timer_get_time() / 1000) - last_boost_started;
-            bool is_pressing_shoulder_button = myController->l1() || myController->r1();
+            bool is_shoulder_button_down = myController->l1() || myController->r1();
             // Boost
-            if (time_since_last_boost > 5000 && y_value > 0.1 && is_pressing_shoulder_button) {
+            if (time_since_last_boost > 5000 && y_value > 0.1 && is_shoulder_button_down && !shoulder_button_previous_status) {
                 // Some gamepads like DS3, DS4, DualSense, Switch, Xbox One S, Stadia support rumble.
                 // It is possible to set it by calling:
                 // Some controllers have two motors: "strong motor", "weak motor".
@@ -309,12 +310,13 @@ void loop() {
                 last_boost_started = esp_timer_get_time() / 1000;
                 time_since_last_boost = 0;
             }
-            if (time_since_last_boost < 1000 && is_pressing_shoulder_button) {
+            if (time_since_last_boost < 1000 && is_shoulder_button_down) {
                 myController->playDualRumble(0 /* delayedStartMs */, 10 /* durationMs */, 64 /* weakMagnitude */, 32 /* strongMagnitude */);
                 is_boosting = true;
             } else {
                 is_boosting = false;
             }
+            shoulder_button_previous_status = is_shoulder_button_down;
         }
     }
 
@@ -338,7 +340,7 @@ void loop() {
 
     // Console.printf("dpad: %d x:%f y:%f max:%f x_value:%f y_value:%f left_motor:%f right_motor:%f balance:%d\n", d_pad, x, y, max_value, x_value, y_value, left_motor, right_motor, motor_balance);
 
-    Console.printf("left:%f right:%f\n", left_motor, right_motor);
+    // Console.printf("left:%f right:%f\n", left_motor, right_motor);
 
     set_motor_pwm(MCPWM_OPR_A, right_motor);
     set_motor_pwm(MCPWM_OPR_B, left_motor);

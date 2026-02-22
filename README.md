@@ -12,11 +12,19 @@
     - `./bin/sixaxispairing xx:xx:xx:xx:xx:xx`
 
 ## Controls
-1) You can use either analog stick to control the robot.
-2) If you want to use both sticks, you can use the other to control turning and the other for controlling the speed forwards / backwards.
-3) The dpad can also be used to control the robot
-4) If the robot does not drive straight, you can hold the `start` / `home` button while pressing `left` or `right` on the dpad. This compensates the balance of the motors to favor the direction you pressed. The maximum compensation is reached after 10 button presses. This setting does not persist after a restart.
-5) You can reset the motor balance by holding the `start` / `home` button and pressing `up` or `down` on the dpad.
+There are multiple ways to control the robot and they can be mixed to find an optimal driving style.
+
+1) You can also use the dpad / arrow keys to turn and move the robot.
+2) You can also use the right analog stick to turn and move the robot. The left analog stick is reserved only for turning / steering.
+3) Inspired by driving games, you can use the X / A button to accelerate and Square / B button to reverse, while steering with the left analog stick.
+
+Pressing a shoulder button (L1 or R1) while moving forward boosts the speed for a moment. The boost can be used again after a 4-5 second cooldown.
+
+## Calibrating
+
+If the robot does not drive straight, you can hold the `start` / `home` button while pressing `left` or `right` on the dpad. This compensates the balance of the motors to favor the direction you pressed. The maximum compensation is reached after 10 button presses. This setting does not persist after a restart.
+
+You can reset the motor balance by holding the `start` / `home` button and pressing `up` or `down` on the dpad.
 
 ## Development
 This firmware uses the Bluepad32 Arduino template for ESP-IDF. You can find the code handling controller input and controlling the motors in [main/sketch.cpp](main/sketch.cpp).

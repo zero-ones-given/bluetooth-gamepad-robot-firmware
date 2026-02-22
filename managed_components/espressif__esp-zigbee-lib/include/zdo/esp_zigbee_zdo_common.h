@@ -463,14 +463,14 @@ typedef enum {
 
     /**
     * Overview:
-    * - Indicates that a PAN ID conflict has been detected. The application must decide whether to
-    *   initiate its resolution or not.
+    * - Indicates that a network failure has been detected.
     *
     * When generated:
-    *  - Upon detecting a PAN ID conflict.
+    * - Triggered when the network encounters a failure and the application can implement
+    *   error handling based on the reported status.
     *
     * Status code:
-    * - ESP_OK: Resolution initiated successfully.
+    * - ESP_OK: On success.
     *
     * Payload:
     * - Refer to esp_zb_zdo_signal_nwk_status_indication_params_t
@@ -491,7 +491,7 @@ typedef enum {
     * - ESP_FAIL: Rejoin failed.
     *
     * Payload:
-    * - Refer to esp_zb_zdo_signal_nwk_status_indication_params_t
+    * - None
     */
 
     ESP_ZB_BDB_SIGNAL_TC_REJOIN_DONE                            = 0x35,
@@ -508,7 +508,7 @@ typedef enum {
     * - ESP_OK: On successful operation.
     *
     * Payload:
-    * - Refer to esp_zb_zdo_signal_nwk_status_indication_params_t
+    * - Pointer to uint8_t, indicating the network status (open or closed).
     */
     ESP_ZB_NWK_SIGNAL_PERMIT_JOIN_STATUS                        = 0x36,
 
@@ -609,16 +609,6 @@ typedef struct {
 } esp_zb_app_signal_msg_t;
 
 /**
- * @brief The enum of mode of Base Device Behavior (BDB)
- * @anchor esp_zb_bdb_commissioning_mode
- */
-typedef enum {
-    ESP_ZB_BDB_MODE_INITIALIZATION                  = 0,
-    ESP_ZB_BDB_MODE_NETWORK_STEERING                = 2,
-    ESP_ZB_BDB_MODE_NETWORK_FORMATION               = 4,
-} esp_zb_bdb_commissioning_mode_t;
-
-/**
  * @brief The enum of bind request destination address mode
  * @anchor esp_zb_zdo_bind_dst_addr_mode_t
  */
@@ -656,7 +646,6 @@ typedef enum {
     ESP_ZB_ZDO_STANDARD_DEV_TC_REJOIN       = 0x03U,    /*!< Standard device trust center rejoin */
     /* 0x04 – 0x07 = Reserved */
 } esp_zb_zdo_update_dev_status_t;
-
 
 /**
  * @brief The payload of ESP_ZB_ZDO_SIGNAL_LEAVE signal

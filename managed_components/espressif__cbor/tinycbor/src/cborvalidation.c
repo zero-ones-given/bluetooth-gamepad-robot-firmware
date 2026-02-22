@@ -27,6 +27,7 @@
 #ifndef __STDC_LIMIT_MACROS
 #  define __STDC_LIMIT_MACROS 1
 #endif
+#define __STDC_WANT_IEC_60559_TYPES_EXT__
 
 #include "cbor.h"
 #include "cborinternal_p.h"
@@ -647,7 +648,7 @@ CborError cbor_value_validate(const CborValue *it, uint32_t flags)
     CborError err = validate_value(&value, flags, CBOR_PARSER_MAX_RECURSIONS);
     if (err)
         return err;
-    if (flags & CborValidateCompleteData && can_read_bytes(it, 1))
+    if (flags & CborValidateCompleteData && can_read_bytes(&value, 1))
         return CborErrorGarbageAtEnd;
     return CborNoError;
 }

@@ -22,8 +22,8 @@
 **
 ****************************************************************************/
 
-#define _POSIX_C_SOURCE 200809L
 #define _GNU_SOURCE
+#define __STDC_WANT_IEC_60559_TYPES_EXT__
 #include "cbor.h"
 #include "cborinternal_p.h"
 #include "compilersupport_p.h"
@@ -328,15 +328,17 @@ encode_double:
         err = cbor_encode_double(encoder, json->valuedouble);
 
         if (err == CborErrorOutOfMemory) {
-            buffersize += 1024;
-            uint8_t *newbuffer = realloc(buffer, buffersize);
+            ptrdiff_t offset = cbor_encoder_get_buffer_size(&container, buffer);
+            size_t newbuffersize = buffersize + 1024;
+            uint8_t *newbuffer = realloc(buffer, newbuffersize);
             if (newbuffer == NULL)
                 return err;
 
             *encoder = container;   // restore state
-            encoder->data.ptr = newbuffer + (container.data.ptr - buffer);
-            encoder->end = newbuffer + buffersize;
+            encoder->data.ptr = newbuffer + offset;
+            encoder->end = newbuffer + newbuffersize;
             buffer = newbuffer;
+            buffersize = newbuffersize;
             goto encode_double;
         }
         return err;

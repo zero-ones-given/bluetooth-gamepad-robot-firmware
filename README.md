@@ -1,15 +1,19 @@
 # Zero Ones Given Bluetooth remote controlled robot
 
 - Clone the project with submodules: `git clone --recurse-submodules git@github.com:zero-ones-given/bluetooth-gamepad-robot-firmware.git`
-- Install ESP-IDF 5.4
+- Install [ESP-IDF 5.4](https://docs.espressif.com/projects/esp-idf/en/v5.4.3/esp32/get-started/index.html)
 - Configure python virtual env etc by running: `. $HOME/esp/esp-idf/export.sh`
 - Build `idf.py build`
-- If you get build errors after changing ESP-IDF version, try running `idf.py fullclean` and building again
-- Sometimes pressing the the EN button on the ESP32 to enable programming mode is required
-- Flash and monitor: `idf.py -p /dev/cu.usbserial-0001 flash monitor` (replace the port with the appropriate one)
+- Flash and monitor: `idf.py -p /dev/cu.usbserial-0001 flash monitor` (replace the port with the appropriate one, see [establishing a serial connection](https://docs.espressif.com/projects/esp-idf/en/v5.4.3/esp32/get-started/establish-serial-connection.html))
 - See [pairing instructions for your controller](https://bluepad32.readthedocs.io/en/stable/supported_gamepads/)
     - You can pair most controllers without manually configuring mac addresses. However, If you're using a *DS3 controller*, find out the bluetooth mac address (should be printed out to console during startup) and use [sixaxispairer](https://github.com/user-none/sixaxispairer) or some other tool to write the mac address to the controller
     - `./bin/sixaxispairing xx:xx:xx:xx:xx:xx`
+
+## Common issues and how to fix them
+- If you get build errors after changing ESP-IDF version, try running `idf.py fullclean` and building again.
+- If you did not use `--recurse-submodules` when you cloned the repo the build will fail. This can be fixed by pulling submodules.
+- If the submodules have been updated to a newer version since you cloned the repository, you may need to run `git submodule update`.
+- Sometimes pressing the the EN button on the ESP32 dev board to enable programming mode is required before flashing
 
 ## Controls
 There are multiple ways to control the robot and they can be mixed to find an optimal driving style.

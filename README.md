@@ -28,9 +28,9 @@ Pressing a shoulder button (L1 or R1) while moving forward boosts the speed for 
 
 ## Calibrating
 
-If the robot does not drive straight, you can hold the `start` / `home` button while pressing `left` or `right` on the dpad. This compensates the balance of the motors to favor the direction you pressed. The maximum compensation is reached after 10 button presses. This setting does not persist after a restart.
+If the robot does not drive straight, you can hold the `start` / `home` / `options` button while pressing `left` or `right` on the dpad. This compensates the balance of the motors to favor the direction you pressed. The maximum compensation is reached after 10 button presses. This setting does not persist after a restart.
 
-You can reset the motor balance by holding the `start` / `home` button and pressing `up` or `down` on the dpad.
+You can reset the motor balance by holding the `start` / `home` / `options` button and pressing `up` or `down` on the dpad.
 
 ## Development
 This firmware uses the Bluepad32 Arduino template for ESP-IDF. You can find the code handling controller input and controlling the motors in [main/sketch.cpp](main/sketch.cpp).

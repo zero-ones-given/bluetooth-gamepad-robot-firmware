@@ -14,9 +14,11 @@
 ## Controls
 There are multiple ways to control the robot and they can be mixed to find an optimal driving style.
 
-1) You can also use the dpad / arrow keys to turn and move the robot.
-2) You can also use the right analog stick to turn and move the robot. The left analog stick is reserved only for turning / steering.
-3) Inspired by driving games, you can use the X / A button to accelerate and Square / B button to reverse, while steering with the left analog stick.
+![DS4 controller](ds4-instructions.png)
+
+1) You can use the dpad / arrow keys to turn and move the robot.
+2) You can use the right analog stick to turn and move the robot. The left analog stick is reserved only for turning / steering.
+3) Inspired by driving games, you can use the X / A button to accelerate and Square / B button to reverse, while steering with the left analog stick. (On some controllers the accelerate and reverse buttons may be the other way around)
 
 Pressing a shoulder button (L1 or R1) while moving forward boosts the speed for a moment. The boost can be used again after a 4-5 second cooldown.
 

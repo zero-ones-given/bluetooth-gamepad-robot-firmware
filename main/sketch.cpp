@@ -31,8 +31,14 @@
 
 // this can be used to correct a bias in the robot direction
 // 50 = center, 0 = all the way left, 100 = all the way right
-int motorBalance = 50;
-bool isBalancePressed = false;
+int motor_balance = 50;
+bool is_balance_pressed = false;
+int64_t last_boost_started = 0;
+float x_value = 0;
+float y_value = 0;
+float max_value = 100.0;
+bool is_boosting = false;
+bool shoulder_button_previous_status = false;
 
 void gpio_init()
 {
@@ -149,6 +155,12 @@ void onConnectedController(ControllerPtr ctl) {
 void onDisconnectedController(ControllerPtr ctl) {
     bool foundController = false;
 
+    // Stop when a controller disconnects
+    x_value = 0;
+    y_value = 0;
+    set_motor_pwm(MCPWM_OPR_A, 0.0);
+    set_motor_pwm(MCPWM_OPR_B, 0.0);
+
     for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
         if (myControllers[i] == ctl) {
             Console.printf("CALLBACK: Controller disconnected from index=%d\n", i);
@@ -203,15 +215,16 @@ void setup() {
 
 // Arduino loop function. Runs in CPU 1.
 void loop() {
-    float rightMotor = 0.0;
-    float leftMotor = 0.0;
+    float right_motor = 0.0;
+    float left_motor = 0.0;
+
     // This call fetches all the controllers' data.
     // Call this function in your main loop.
     bool dataUpdated = BP32.update();
     
     if (dataUpdated) {
         for (auto myController : myControllers) {
-            if (!myController || !myController->isConnected() || !myController->hasData()) {
+            if (!myController || !myController->isConnected()) {
                 continue;
             }
             if (!myController->isGamepad()) {
@@ -219,79 +232,123 @@ void loop() {
                 continue;
             }
             
-            float leftxValue = myController->axisX();
-            float leftyValue = myController->axisY();
-            float rightxValue = myController->axisRX();
-            float rightyValue = myController->axisRY();
-            float x = rightxValue;
-            float y = rightyValue;
-            uint8_t dPad = myController->dpad();
-            bool isStartPressed = myController->miscHome();
+            float left_x_value = myController->axisX();
+            // Ignore left Y to make it more clear it's only used for steering
+            // float left_y_value = myController->axisY();
+            float right_x_value = myController->axisRX();
+            float right_y_value = myController->axisRY();
+            float x = right_x_value;
+            float y = right_y_value;
+            uint8_t d_pad = myController->dpad();
+            bool is_start_pressed = myController->miscHome();
 
-            if (fabs(leftxValue) > fabs(rightxValue)) {
-                x = leftxValue;
+            if (fabs(left_x_value) > fabs(right_x_value)) {
+                x = left_x_value;
             }
-            if (fabs(leftyValue) > fabs(rightyValue)) {
-                y = leftyValue;
-            }
+            /* Ignore left Y to make it more clear it's only used for steering
+            if (fabs(left_y_value) > fabs(right_y_value)) {
+                y = left_y_value;
+            } */
 
             // make the joystic values x and y exponential such that the max value is still 512 but it's reached slower
             x = x * fabs(x) / 512.0;
             y = y * fabs(y) / 512.0;
+            x_value = x / -512.0 * max_value;
+            y_value = y / -512.0 * max_value;
 
-            // set max value to 85 since the axis will be added together to get final motor values
-            // and the maximum values should be ~100 to avoid clipping
-            float maxValue = 85.0;
-            float xValue = x / -512.0 * maxValue;
-            float yValue = y / -512.0 * maxValue;
+            // Override Y values if A or B button is pressed (Accelerate / Reverse)
+            if (myController->a()) {
+                y_value = max_value;
+            }
+            if (myController->b()) {
+                y_value = -max_value;
+            }
 
-            if (fabs(xValue) < DEADBAND && fabs(yValue) < DEADBAND)
+            if (fabs(x_value) < DEADBAND && fabs(y_value) < DEADBAND)
             {
-                xValue = 0;
-                yValue = 0;
+                x_value = 0;
+                y_value = 0;
             }
 
-            if (dPad == DPAD_UP || dPad == DPAD_UP + DPAD_RIGHT || dPad == DPAD_UP + DPAD_LEFT) {
-                yValue = maxValue;
+            if (d_pad == DPAD_UP || d_pad == DPAD_UP + DPAD_RIGHT || d_pad == DPAD_UP + DPAD_LEFT) {
+                y_value = max_value;
             }
-            if (dPad == DPAD_RIGHT || dPad == DPAD_RIGHT + DPAD_UP || dPad == DPAD_RIGHT + DPAD_DOWN) {
-                xValue = -maxValue;
+            if (d_pad == DPAD_RIGHT || d_pad == DPAD_RIGHT + DPAD_UP || d_pad == DPAD_RIGHT + DPAD_DOWN) {
+                x_value = -max_value;
             }
-            if (dPad == DPAD_DOWN || dPad == DPAD_DOWN + DPAD_RIGHT || dPad == DPAD_DOWN + DPAD_LEFT) {
-                yValue = -maxValue;
+            if (d_pad == DPAD_DOWN || d_pad == DPAD_DOWN + DPAD_RIGHT || d_pad == DPAD_DOWN + DPAD_LEFT) {
+                y_value = -max_value;
             }
-            if (dPad == DPAD_LEFT || dPad == DPAD_LEFT + DPAD_UP || dPad == DPAD_LEFT + DPAD_RIGHT) {
-                xValue = maxValue;
+            if (d_pad == DPAD_LEFT || d_pad == DPAD_LEFT + DPAD_UP || d_pad == DPAD_LEFT + DPAD_RIGHT) {
+                x_value = max_value;
             }
 
             // Adjust motor balance
-            if (dPad == DPAD_LEFT && isStartPressed && !isBalancePressed && motorBalance > 0) {
-                motorBalance-=5;
-                isBalancePressed = true;
+            if (d_pad == DPAD_LEFT && is_start_pressed && !is_balance_pressed && motor_balance > 0) {
+                motor_balance-=5;
+                is_balance_pressed = true;
             }
-            if (dPad == DPAD_RIGHT && isStartPressed && !isBalancePressed && motorBalance < 100) {
-                motorBalance+=5;
-                isBalancePressed = true;
+            if (d_pad == DPAD_RIGHT && is_start_pressed && !is_balance_pressed && motor_balance < 100) {
+                motor_balance+=5;
+                is_balance_pressed = true;
             }
-            if ((dPad == DPAD_UP || dPad == DPAD_DOWN) && isStartPressed) {
-                motorBalance = 50;
+            if ((d_pad == DPAD_UP || d_pad == DPAD_DOWN) && is_start_pressed) {
+                motor_balance = 50;
             }
-            if (dPad != DPAD_RIGHT && dPad != DPAD_LEFT) {
-                isBalancePressed = false;
+            if (d_pad != DPAD_RIGHT && d_pad != DPAD_LEFT) {
+                is_balance_pressed = false;
             }
 
-            // These multipliers are values between 0.5 and 1 that compensate for uneven motor power (due to mechanical differences)
-            float leftMultiplier = motorBalance < 50 ? 0.5 + (motorBalance / 100.0) : 1.0;
-            float rightMultiplier = motorBalance > 50 ? 1.5 - (motorBalance / 100.0) : 1.0;
-            leftMotor = limit_range(yValue - xValue, -100, 100) * leftMultiplier;
-            rightMotor = limit_range(yValue + xValue, -100, 100) * rightMultiplier;
+            int64_t time_since_last_boost = (esp_timer_get_time() / 1000) - last_boost_started;
+            bool is_shoulder_button_down = myController->l1() || myController->r1();
+            // Boost
+            if (time_since_last_boost > 5000 && y_value > 0.1 && is_shoulder_button_down && !shoulder_button_previous_status) {
+                // Some gamepads like DS3, DS4, DualSense, Switch, Xbox One S, Stadia support rumble.
+                // It is possible to set it by calling:
+                // Some controllers have two motors: "strong motor", "weak motor".
+                // It is possible to control them independently.
+                last_boost_started = esp_timer_get_time() / 1000;
+                time_since_last_boost = 0;
+            }
+            if (time_since_last_boost < 1000 && is_shoulder_button_down) {
+                myController->playDualRumble(0 /* delayedStartMs */, 10 /* durationMs */, 64 /* weakMagnitude */, 32 /* strongMagnitude */);
+                // Set the LED color to red when boosting
+                myController->setColorLED(255, 0, 0);
+                is_boosting = true;
+            } else {
+                is_boosting = false;
+                // Set the LED color blue during cooldown and turn purple when the boost is ready
+                myController->setColorLED(time_since_last_boost > 5000 ? 255 : 0, 0, 255);
+            }
 
-            // Console.printf("dpad: %d x:%f y:%f max:%f xValue:%f yValue:%f leftMotor:%f rightMotor:%f balance:%d\n", dPad, x, y, maxValue, xValue, yValue, leftMotor, rightMotor, motorBalance);
-
-            set_motor_pwm(MCPWM_OPR_A, rightMotor);
-            set_motor_pwm(MCPWM_OPR_B, leftMotor);
+            shoulder_button_previous_status = is_shoulder_button_down;
         }
     }
+
+    // These multipliers are values between 0.5 and 1 that compensate for uneven motor power (due to mechanical differences)
+    float left_multiplier = motor_balance < 50 ? 0.5 + (motor_balance / 100.0) : 1.0;
+    float right_multiplier = motor_balance > 50 ? 1.5 - (motor_balance / 100.0) : 1.0;
+
+    int max_pwm = 45;
+    float y_value_with_overrides = y_value;
+    float x_value_with_overrides = x_value;
+    if (is_boosting) {
+        max_pwm = 100;
+        // When boost is on, we always go forwards with full steam!
+        y_value_with_overrides = max_value;
+        // ...and steering does not work quite as well
+        x_value_with_overrides = x_value * 0.75;
+    }
+
+    left_motor = limit_range(y_value_with_overrides - x_value_with_overrides, -max_pwm, max_pwm) * left_multiplier;
+    right_motor = limit_range(y_value_with_overrides + x_value_with_overrides, -max_pwm, max_pwm) * right_multiplier;
+
+    // Console.printf("dpad: %d x:%f y:%f max:%f x_value:%f y_value:%f left_motor:%f right_motor:%f balance:%d\n", d_pad, x, y, max_value, x_value, y_value, left_motor, right_motor, motor_balance);
+
+    // Console.printf("left:%f right:%f\n", left_motor, right_motor);
+
+    set_motor_pwm(MCPWM_OPR_A, right_motor);
+    set_motor_pwm(MCPWM_OPR_B, left_motor);
 
     // The main loop must have some kind of "yield to lower priority task" event.
     // Otherwise, the watchdog will get triggered.

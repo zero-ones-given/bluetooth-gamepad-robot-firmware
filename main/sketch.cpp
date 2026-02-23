@@ -312,10 +312,15 @@ void loop() {
             }
             if (time_since_last_boost < 1000 && is_shoulder_button_down) {
                 myController->playDualRumble(0 /* delayedStartMs */, 10 /* durationMs */, 64 /* weakMagnitude */, 32 /* strongMagnitude */);
+                // Set the LED color to red when boosting
+                myController->setColorLED(255, 0, 0);
                 is_boosting = true;
             } else {
                 is_boosting = false;
+                // Set the LED color blue during cooldown and turn purple when the boost is ready
+                myController->setColorLED(time_since_last_boost > 5000 ? 255 : 0, 0, 255);
             }
+
             shoulder_button_previous_status = is_shoulder_button_down;
         }
     }

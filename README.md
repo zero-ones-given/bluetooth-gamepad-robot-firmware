@@ -14,6 +14,7 @@
 - If you did not use `--recurse-submodules` when you cloned the repo the build will fail. This can be fixed by pulling submodules.
 - If the submodules have been updated to a newer version since you cloned the repository, you may need to run `git submodule update`.
 - Sometimes pressing the the EN button on the ESP32 dev board to enable programming mode is required before flashing
+- Multiple controllers can connect to the same robot at the same time. Ensure you have set `CONFIG_BLUEPAD32_MAX_DEVICES=1` in your sdkconfig and rebuild. This has been configured in [sdkconfig.defaults](sdkconfig.defaults) on line 50, but that will not be reflected in your sdkconfig if you built this project before that change was made. Alternatively you can also back up and delete your sdkconfig. During the next build it will be generated based on sdkconfig.defaults.
 
 ## Controls
 There are multiple ways to control the robot and they can be mixed to find an optimal driving style.
